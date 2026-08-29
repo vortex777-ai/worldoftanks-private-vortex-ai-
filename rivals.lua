@@ -27,7 +27,6 @@ local Window=Library:CreateWindow({
     NotifySide="Right",
     ShowCustomCursor=true,
 })
-Library:Notify("Welcome to JulyScripts, made by thet1x with love ❤️", 10)
 
 local Tabs={
     Combat=Window:AddTab("Combat","crosshair"),
