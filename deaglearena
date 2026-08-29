@@ -1,0 +1,364 @@
+
+--====================================================
+-- LOAD WINDUI
+--====================================================
+
+local WindUI = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
+))()
+
+if not WindUI then
+    return
+end
+
+--====================================================
+-- WELCOME NOTIFICATION
+--====================================================
+
+WindUI:Notify({
+    Title = "JulyScripts",
+    Content = "Welcome to JulyScripts, made by thet1x with love ❤️",
+    Icon = "heart",
+    Duration = 10,
+    CanClose = true,
+})
+
+--====================================================
+-- SCRIPT STATE
+--====================================================
+
+local ScriptLoading = false
+local ScriptLoaded = false
+
+--====================================================
+-- WINDOW
+--====================================================
+
+local Window = WindUI:CreateWindow({
+    Title = "Place Selector",
+    Icon = "gamepad-2",
+    Author = "July Scripts",
+    Folder = "PlaceSelector",
+
+    Theme = "Dark",
+    Resizable = true,
+    HideSearchBar = false,
+
+    OpenButton = {
+        Title = "Open Place Selector",
+        Enabled = true,
+        Draggable = true,
+        OnlyMobile = false,
+    },
+})
+
+--====================================================
+-- RIGHT CONTROL
+--====================================================
+
+pcall(function()
+    Window:SetToggleKey(Enum.KeyCode.RightControl)
+end)
+
+--====================================================
+-- LOAD SCRIPT FUNCTION
+--====================================================
+
+local function LoadScript(scriptName, scriptUrl)
+    if ScriptLoaded then
+        WindUI:Notify({
+            Title = "JulyScripts",
+            Content = "Скрипт уже был запущен. Второй скрипт запустить нельзя.",
+            Icon = "info",
+            Duration = 4,
+            CanClose = true,
+        })
+
+        return
+    end
+
+    if ScriptLoading then
+        WindUI:Notify({
+            Title = "JulyScripts",
+            Content = "Другой скрипт уже загружается.",
+            Icon = "loader",
+            Duration = 3,
+            CanClose = true,
+        })
+
+        return
+    end
+
+    ScriptLoading = true
+
+    WindUI:Notify({
+        Title = scriptName,
+        Content = "Загрузка " .. scriptName .. "...",
+        Icon = "loader",
+        Duration = 3,
+        CanClose = true,
+    })
+
+    local success, err = pcall(function()
+        local source = game:HttpGet(scriptUrl)
+
+        if not source or source == "" then
+            error("Пустой ответ от GitHub")
+        end
+
+        local scriptFunction = loadstring(source)
+
+        if not scriptFunction then
+            error("Не удалось скомпилировать скрипт")
+        end
+
+        scriptFunction()
+    end)
+
+    if success then
+        ScriptLoaded = true
+        ScriptLoading = false
+
+        WindUI:Notify({
+            Title = scriptName,
+            Content = scriptName .. " успешно загружен!",
+            Icon = "check",
+            Duration = 3,
+            CanClose = true,
+        })
+
+        task.delay(3, function()
+            pcall(function()
+                Window:Destroy()
+            end)
+        end)
+
+    else
+        ScriptLoading = false
+
+        WindUI:Notify({
+            Title = scriptName,
+            Content = "Ошибка загрузки:\n" .. tostring(err),
+            Icon = "x",
+            Duration = 6,
+            CanClose = true,
+        })
+    end
+end
+
+--====================================================
+-- PLACES TAB
+--====================================================
+
+local PlacesTab = Window:Tab({
+    Title = "Places",
+    Icon = "gamepad-2",
+})
+
+PlacesTab:Paragraph({
+    Title = "Place Selector",
+    Desc = "Выбери Roblox Place.",
+    Icon = "map",
+})
+
+--====================================================
+-- RIVALS
+--====================================================
+
+PlacesTab:Button({
+    Title = "Rivals",
+    Desc = "Load Rivals script",
+    Icon = "crosshair",
+
+    Callback = function()
+        LoadScript(
+            "Rivals",
+            "https://raw.githubusercontent.com/vortex777-ai/worldoftanks-private-vortex-ai-/main/rivals.lua"
+        )
+    end,
+})
+
+--====================================================
+-- GROUNDWAR
+--====================================================
+
+PlacesTab:Button({
+    Title = "GroundWar",
+    Desc = "Load GroundWar script",
+    Icon = "crosshair",
+
+    Callback = function()
+        LoadScript(
+            "GroundWar",
+            "https://raw.githubusercontent.com/vortex777-ai/worldoftanks-private-vortex-ai-/main/groundwar.lua"
+        )
+    end,
+})
+
+--====================================================
+-- +1 CUT GRASS ADVENTURE
+--====================================================
+
+PlacesTab:Button({
+    Title = "+1 Cut Grass Adventure",
+    Desc = "Load +1 Cut Grass Adventure script",
+    Icon = "leaf",
+
+    Callback = function()
+        LoadScript(
+            "+1 Cut Grass Adventure",
+            "https://raw.githubusercontent.com/vortex777-ai/worldoftanks-private-vortex-ai-/main/%2B1%20Cut%20Grass%20Adventure.lua"
+        )
+    end,
+})
+
+--====================================================
+-- PLACE 4
+--====================================================
+
+PlacesTab:Button({
+    Title = "Place4",
+    Desc = "Пока ничего не запускает",
+    Icon = "map-pin",
+
+    Callback = function()
+        if ScriptLoaded then
+            WindUI:Notify({
+                Title = "JulyScripts",
+                Content = "Скрипт уже был запущен.",
+                Icon = "info",
+                Duration = 3,
+                CanClose = true,
+            })
+            return
+        end
+
+        if ScriptLoading then
+            WindUI:Notify({
+                Title = "JulyScripts",
+                Content = "Другой скрипт уже загружается.",
+                Icon = "loader",
+                Duration = 3,
+                CanClose = true,
+            })
+            return
+        end
+
+        WindUI:Notify({
+            Title = "Place4",
+            Content = "Для этого Place пока нет скрипта.",
+            Icon = "info",
+            Duration = 3,
+            CanClose = true,
+        })
+    end,
+})
+
+--====================================================
+-- PLACE 5
+--====================================================
+
+PlacesTab:Button({
+    Title = "Place5",
+    Desc = "Пока ничего не запускает",
+    Icon = "map-pin",
+
+    Callback = function()
+        if ScriptLoaded then
+            WindUI:Notify({
+                Title = "JulyScripts",
+                Content = "Скрипт уже был запущен.",
+                Icon = "info",
+                Duration = 3,
+                CanClose = true,
+            })
+            return
+        end
+
+        if ScriptLoading then
+            WindUI:Notify({
+                Title = "JulyScripts",
+                Content = "Другой скрипт уже загружается.",
+                Icon = "loader",
+                Duration = 3,
+                CanClose = true,
+            })
+            return
+        end
+
+        WindUI:Notify({
+            Title = "Place5",
+            Content = "Для этого Place пока нет скрипта.",
+            Icon = "info",
+            Duration = 3,
+            CanClose = true,
+        })
+    end,
+})
+
+--====================================================
+-- INFO TAB
+--====================================================
+
+local InfoTab = Window:Tab({
+    Title = "Info",
+    Icon = "info",
+})
+
+local placeName = "Unknown"
+
+pcall(function()
+    local MarketplaceService = game:GetService("MarketplaceService")
+    local info = MarketplaceService:GetProductInfo(game.PlaceId)
+
+    if info and info.Name then
+        placeName = info.Name
+    end
+end)
+
+InfoTab:Paragraph({
+    Title = "Current Place",
+    Desc = tostring(game.PlaceId),
+    Icon = "hash",
+})
+
+InfoTab:Paragraph({
+    Title = "Place Name",
+    Desc = placeName,
+    Icon = "gamepad-2",
+})
+
+InfoTab:Paragraph({
+    Title = "Toggle Key",
+    Desc = "RightControl",
+    Icon = "keyboard",
+})
+
+--====================================================
+-- OPEN WINDOW
+--====================================================
+
+pcall(function()
+    Window:Open()
+end)
+
+--====================================================
+-- DEFAULT TAB = PLACES
+--====================================================
+
+task.defer(function()
+    task.wait(0.15)
+
+    pcall(function()
+        if PlacesTab.Select then
+            PlacesTab:Select()
+        end
+    end)
+
+    pcall(function()
+        if Window.SelectTab then
+            Window:SelectTab(PlacesTab)
+        end
+    end)
+end)
+
