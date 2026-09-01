@@ -1,0 +1,1814 @@
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/vortex777-ai/ui-worldofS-st/f27d0e121266420107c5abf4a25751b79f00a509/Stellar.lua"))()
+
+local Window = Library:Window({
+    Name = "JulyScripts",
+    SubName = "+1 Speed Monkey Escape",
+    Logo = "rbxassetid://116255434488074",
+})
+
+-- ==================== CLEAN SIDEBAR ====================
+
+task.defer(function()
+    local sidebar = Window.Items
+        and Window.Items["Sidebar"]
+        and Window.Items["Sidebar"].Instance
+
+    if not sidebar then return end
+
+    for _, child in ipairs(sidebar:GetChildren()) do
+        if child:IsA("Frame") then
+            if child.Size.Y.Offset == 105 and child.AnchorPoint.Y == 1 then
+                child:Destroy()
+            elseif child.Size.Y.Offset == 1 and child.AnchorPoint.Y == 1 then
+                child:Destroy()
+            end
+        end
+    end
+
+    local pages = Window.Items["Pages"]
+        and Window.Items["Pages"].Instance
+
+    if pages then
+        pages.Size = UDim2.new(1, -16, 1, -85)
+    end
+end)
+
+-- ==================== SERVICES ====================
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- ==================== KEYBIND LIST ====================
+
+local KeybindList = {}
+
+do
+    local Theme = Library.Theme
+    local Font = Library.Font
+
+    local Gui = Instance.new("ScreenGui")
+    Gui.Name = "StellarKeybindList"
+    Gui.ResetOnSpawn = false
+    Gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    Gui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+
+    local Frame = Instance.new("Frame")
+    Frame.Name = "KeybindList"
+    Frame.Size = UDim2.new(0, 180, 0, 0)
+    Frame.AutomaticSize = Enum.AutomaticSize.Y
+    Frame.Position = UDim2.new(0, 20, 0.4, 0)
+    Frame.BackgroundColor3 = Theme.Background
+    Frame.BorderSizePixel = 0
+    Frame.Visible = true
+    Frame.Parent = Gui
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 6)
+    Corner.Parent = Frame
+
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Color = Theme.Outline
+    Stroke.Thickness = 1
+    Stroke.Parent = Frame
+
+    local Padding = Instance.new("UIPadding")
+    Padding.PaddingTop = UDim.new(0, 8)
+    Padding.PaddingBottom = UDim.new(0, 8)
+    Padding.PaddingLeft = UDim.new(0, 10)
+    Padding.PaddingRight = UDim.new(0, 10)
+    Padding.Parent = Frame
+
+    local Layout = Instance.new("UIListLayout")
+    Layout.SortOrder = Enum.SortOrder.LayoutOrder
+    Layout.Padding = UDim.new(0, 4)
+    Layout.Parent = Frame
+
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1, 0, 0, 18)
+    Title.BackgroundTransparency = 1
+    Title.Text = "Keybinds"
+    Title.TextColor3 = Theme.Text
+    Title.FontFace = Font
+    Title.TextSize = 15
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.Parent = Frame
+
+    local Separator = Instance.new("Frame")
+    Separator.Size = UDim2.new(1, 0, 0, 1)
+    Separator.BackgroundColor3 = Theme.Outline
+    Separator.BorderSizePixel = 0
+    Separator.Parent = Frame
+
+    local dragging = false
+    local dragStart
+    local startPos
+
+    Title.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = Frame.Position
+        end
+    end)
+
+    Title.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            Frame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    local Entries = {}
+
+    local function IsValidKey(keyText)
+        if not keyText then return false end
+        keyText = tostring(keyText)
+        return keyText ~= "" and keyText ~= "None" and keyText ~= "Unknown"
+    end
+
+    local function TweenObject(object, goals)
+        local tween = TweenService:Create(
+            object,
+            TweenInfo.new(0.2, Enum.EasingStyle.Circular, Enum.EasingDirection.Out),
+            goals
+        )
+        tween:Play()
+    end
+
+    local function CreateActiveIndicator(Row)
+        local Indicator = Instance.new("Frame")
+        Indicator.Name = "ActiveIndicator"
+        Indicator.AnchorPoint = Vector2.new(0, 0.5)
+        Indicator.Position = UDim2.new(0, 0, 0.5, 0)
+        Indicator.Size = UDim2.new(0, 3, 0, 0)
+        Indicator.BackgroundColor3 = Theme.Accent
+        Indicator.BackgroundTransparency = 1
+        Indicator.BorderSizePixel = 0
+        Indicator.ZIndex = Row.ZIndex + 2
+        Indicator.Parent = Row
+
+        local IndicatorCorner = Instance.new("UICorner")
+        IndicatorCorner.CornerRadius = UDim.new(1, 0)
+        IndicatorCorner.Parent = Indicator
+
+        return Indicator
+    end
+
+    local function ApplyActive(entry, active)
+        entry.Active = active == true
+
+        TweenObject(entry.Indicator, {
+            Size = entry.Active and UDim2.new(0, 3, 0.75, 0) or UDim2.new(0, 3, 0, 0),
+            BackgroundTransparency = entry.Active and 0 or 1,
+        })
+
+        TweenObject(entry.Name, {
+            Position = entry.Active and UDim2.new(0, 10, 0, 0) or UDim2.new(0, 0, 0, 0),
+            TextTransparency = entry.Active and 0 or 0.35,
+        })
+
+        TweenObject(entry.Key, {
+            TextTransparency = entry.Active and 0 or 0.35,
+            TextColor3 = entry.Active and Theme.Accent or Theme.Text,
+        })
+    end
+
+    function KeybindList:Add(name, keyText, active)
+        if not IsValidKey(keyText) then
+            self:Remove(name)
+            return
+        end
+
+        if Entries[name] then
+            self:Set(name, keyText, active)
+            return
+        end
+
+        local Row = Instance.new("Frame")
+        Row.Name = "Row_" .. tostring(name)
+        Row.Size = UDim2.new(1, 0, 0, 18)
+        Row.BackgroundTransparency = 1
+        Row.BorderSizePixel = 0
+        Row.Parent = Frame
+
+        local Indicator = CreateActiveIndicator(Row)
+
+        local NameLabel = Instance.new("TextLabel")
+        NameLabel.Name = "Name"
+        NameLabel.Size = UDim2.new(0.6, 0, 1, 0)
+        NameLabel.Position = UDim2.new(0, 0, 0, 0)
+        NameLabel.BackgroundTransparency = 1
+        NameLabel.Text = tostring(name)
+        NameLabel.TextColor3 = Theme.Text
+        NameLabel.TextTransparency = 0.35
+        NameLabel.FontFace = Font
+        NameLabel.TextSize = 13
+        NameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        NameLabel.ZIndex = Row.ZIndex + 1
+        NameLabel.Parent = Row
+
+        local KeyLabel = Instance.new("TextLabel")
+        KeyLabel.Name = "Key"
+        KeyLabel.Size = UDim2.new(0.4, 0, 1, 0)
+        KeyLabel.Position = UDim2.new(0.6, 0, 0, 0)
+        KeyLabel.BackgroundTransparency = 1
+        KeyLabel.Text = tostring(keyText)
+        KeyLabel.TextColor3 = Theme.Text
+        KeyLabel.TextTransparency = 0.35
+        KeyLabel.FontFace = Font
+        KeyLabel.TextSize = 13
+        KeyLabel.TextXAlignment = Enum.TextXAlignment.Right
+        KeyLabel.ZIndex = Row.ZIndex + 1
+        KeyLabel.Parent = Row
+
+        Entries[name] = {
+            Row = Row,
+            Name = NameLabel,
+            Key = KeyLabel,
+            Indicator = Indicator,
+            Active = false,
+        }
+
+        ApplyActive(Entries[name], active)
+    end
+
+    function KeybindList:Set(name, keyText, active)
+        if not IsValidKey(keyText) then
+            self:Remove(name)
+            return
+        end
+
+        if not Entries[name] then
+            self:Add(name, keyText, active)
+            return
+        end
+
+        local entry = Entries[name]
+        entry.Key.Text = tostring(keyText)
+        ApplyActive(entry, active)
+    end
+
+    function KeybindList:SetActive(name, active)
+        local entry = Entries[name]
+        if not entry then return end
+        ApplyActive(entry, active)
+    end
+
+    function KeybindList:Remove(name)
+        local entry = Entries[name]
+        if entry then
+            entry.Row:Destroy()
+            Entries[name] = nil
+        end
+    end
+
+    function KeybindList:SetVisible(state)
+        Frame.Visible = state == true
+    end
+
+    function KeybindList:Destroy()
+        if Gui then
+            Gui:Destroy()
+        end
+        table.clear(Entries)
+    end
+end
+
+KeybindList:SetVisible(true)
+
+-- ==================== PAGES ====================
+
+local MainPage = Window:Page({
+    Name = "Main",
+    Icon = "rbxassetid://7733960981", -- home
+})
+
+local AutoWinPage = Window:Page({
+    Name = "Auto Win",
+    Icon = "rbxassetid://7733765398", -- crown
+})
+
+local AutoBuyPage = Window:Page({
+    Name = "Auto Buy",
+    Icon = "rbxassetid://7734056813", -- shopping-cart
+})
+
+local AutoFusePage = Window:Page({
+    Name = "Auto Fuse",
+    Icon = "rbxassetid://7733952195", -- git-merge
+})
+
+local PlayerPage = Window:Page({
+    Name = "Player",
+    Icon = "rbxassetid://7733799901", -- gamepad
+})
+
+local SettingsPage = Library:CreateSettingsPage(Window)
+
+local UnloadPage = Window:Page({
+    Name = "Unload",
+    Icon = "rbxassetid://7743878857", -- X
+})
+-- ==================== SETTINGS ====================
+
+local KeybindSection = SettingsPage:Section({
+    Name = "Keybinds",
+    Side = 1,
+})
+
+KeybindSection:Toggle({
+    Name = "Keybind List",
+    Flag = "KeybindListVisible",
+    Default = true,
+    Callback = function(state)
+        KeybindList:SetVisible(state)
+    end,
+})
+
+-- ==================== MAIN ====================
+
+local MainSection = MainPage:Section({
+    Name = "Main",
+    Side = 1,
+})
+
+-- ==================== AUTO REBIRTH ====================
+
+local AutoRebirthEnabled = false
+local AutoRebirthConnectionId = 0
+
+local function StartAutoRebirth()
+    AutoRebirthConnectionId = AutoRebirthConnectionId + 1
+    local myConnectionId = AutoRebirthConnectionId
+
+    task.spawn(function()
+        while AutoRebirthEnabled and myConnectionId == AutoRebirthConnectionId do
+            pcall(function()
+                ReplicatedStorage
+                    :WaitForChild("Remotes")
+                    :WaitForChild("Rebirth")
+                    :FireServer()
+            end)
+            task.wait(1)
+        end
+    end)
+end
+
+MainSection:Toggle({
+    Name = "Auto Rebirth",
+    Flag = "AutoRebirth",
+    Default = false,
+    Callback = function(state)
+        AutoRebirthEnabled = state
+
+        if state then
+            StartAutoRebirth()
+        else
+            AutoRebirthConnectionId = AutoRebirthConnectionId + 1
+        end
+    end,
+})
+
+-- ==================== AUTO AURA ====================
+
+local AutoAuraEnabled = false
+local AutoAuraConnectionId = 0
+local AurasConfig
+
+pcall(function()
+    AurasConfig = require(
+        ReplicatedStorage
+            :WaitForChild("Config")
+            :WaitForChild("Auras")
+    )
+end)
+
+local function GetAuraPlayerData()
+    return LocalPlayer:FindFirstChild("Data")
+end
+
+local function GetCurrentAuraMulti()
+    local Data = GetAuraPlayerData()
+
+    if not Data or not AurasConfig then
+        return 0
+    end
+
+    local EquippedAura = Data:FindFirstChild("EquippedAura")
+
+    if not EquippedAura then
+        return 0
+    end
+
+    local currentAuraName = EquippedAura.Value
+
+    if currentAuraName == nil or currentAuraName == "" then
+        return 0
+    end
+
+    local currentAura = AurasConfig[currentAuraName]
+
+    if not currentAura then
+        return 0
+    end
+
+    return tonumber(currentAura.Multi) or 0
+end
+
+local function GetBestAvailableAura()
+    local Data = GetAuraPlayerData()
+
+    if not Data or not AurasConfig then
+        return nil
+    end
+
+    local UnlockedAuras = Data:FindFirstChild("UnlockedAuras")
+    local Wins = Data:FindFirstChild("Wins")
+
+    if not UnlockedAuras or not Wins then
+        return nil
+    end
+
+    local currentMulti = GetCurrentAuraMulti()
+    local bestAura = nil
+    local bestMulti = currentMulti
+
+    for auraName, auraData in pairs(AurasConfig) do
+        if type(auraData) == "table" then
+            local multi = tonumber(auraData.Multi) or 0
+            local price = auraData.Price
+            local unlocked = UnlockedAuras:FindFirstChild(auraName) ~= nil
+
+            if not unlocked and multi > bestMulti and price ~= nil then
+                local canAfford = false
+
+                pcall(function()
+                    local BigNum = require(
+                        ReplicatedStorage
+                            :WaitForChild("Util")
+                            :WaitForChild("BigNum")
+                    )
+
+                    canAfford = BigNum.GreaterEqual(Wins, price)
+                end)
+
+                if canAfford then
+                    bestAura = auraName
+                    bestMulti = multi
+                end
+            end
+        end
+    end
+
+    return bestAura, bestMulti
+end
+
+local function ProcessAutoAura()
+    local auraName = GetBestAvailableAura()
+
+    if not auraName then
+        return
+    end
+
+    local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+    local BuyAura = Remotes:WaitForChild("BuyAura")
+    local EquipAura = Remotes:WaitForChild("EquipAura")
+
+    local success = pcall(function()
+        BuyAura:FireServer(auraName)
+    end)
+
+    if success then
+        task.wait(0.25)
+
+        pcall(function()
+            EquipAura:FireServer(auraName)
+        end)
+    end
+end
+
+local function StartAutoAura()
+    AutoAuraConnectionId = AutoAuraConnectionId + 1
+    local myConnectionId = AutoAuraConnectionId
+
+    task.spawn(function()
+        while AutoAuraEnabled and myConnectionId == AutoAuraConnectionId do
+            ProcessAutoAura()
+            task.wait(1)
+        end
+    end)
+end
+
+MainSection:Toggle({
+    Name = "Auto Aura",
+    Flag = "AutoAura",
+    Default = false,
+    Callback = function(state)
+        AutoAuraEnabled = state
+
+        if state then
+            StartAutoAura()
+        else
+            AutoAuraConnectionId = AutoAuraConnectionId + 1
+        end
+    end,
+})
+
+-- ==================== AUTO TRAIL ====================
+
+local AutoTrailEnabled = false
+local AutoTrailConnectionId = 0
+local TrailsConfig
+
+pcall(function()
+    TrailsConfig = require(
+        ReplicatedStorage
+            :WaitForChild("Config")
+            :WaitForChild("Trails")
+    )
+end)
+
+local function GetPlayerData()
+    return LocalPlayer:FindFirstChild("Data")
+end
+
+local function GetCurrentTrailMulti()
+    local Data = GetPlayerData()
+
+    if not Data or not TrailsConfig then
+        return 0
+    end
+
+    local EquippedTrail = Data:FindFirstChild("EquippedTrail")
+
+    if not EquippedTrail then
+        return 0
+    end
+
+    local currentTrailName = EquippedTrail.Value
+
+    if currentTrailName == nil or currentTrailName == "" then
+        return 0
+    end
+
+    local currentTrail = TrailsConfig[currentTrailName]
+
+    if not currentTrail then
+        return 0
+    end
+
+    return tonumber(currentTrail.Multi) or 0
+end
+
+local function GetBestAvailableTrail()
+    local Data = GetPlayerData()
+
+    if not Data or not TrailsConfig then
+        return nil
+    end
+
+    local UnlockedTrails = Data:FindFirstChild("UnlockedTrails")
+    local Wins = Data:FindFirstChild("Wins")
+
+    if not UnlockedTrails or not Wins then
+        return nil
+    end
+
+    local currentMulti = GetCurrentTrailMulti()
+    local bestTrail = nil
+    local bestMulti = currentMulti
+    local bestPrice = nil
+
+    for trailName, trailData in pairs(TrailsConfig) do
+        if type(trailData) == "table" then
+            local multi = tonumber(trailData.Multi) or 0
+            local price = trailData.Price
+            local unlocked = UnlockedTrails:FindFirstChild(trailName) ~= nil
+
+            if not unlocked and multi > bestMulti and price ~= nil then
+                local canAfford = false
+
+                pcall(function()
+                    local BigNum = require(
+                        ReplicatedStorage
+                            :WaitForChild("Util")
+                            :WaitForChild("BigNum")
+                    )
+
+                    canAfford = BigNum.GreaterEqual(Wins, price)
+                end)
+
+                if canAfford then
+                    if not bestTrail or multi > bestMulti then
+                        bestTrail = trailName
+                        bestMulti = multi
+                        bestPrice = price
+                    end
+                end
+            end
+        end
+    end
+
+    return bestTrail, bestMulti, bestPrice
+end
+
+local function ProcessAutoTrail()
+    local Data = GetPlayerData()
+
+    if not Data or not TrailsConfig then
+        return
+    end
+
+    local trailName = GetBestAvailableTrail()
+
+    if not trailName then
+        return
+    end
+
+    local BuyTrail = ReplicatedStorage
+        :WaitForChild("Remotes")
+        :WaitForChild("BuyTrail")
+
+    local EquipTrail = ReplicatedStorage
+        :WaitForChild("Remotes")
+        :WaitForChild("EquipTrail")
+
+    local success = pcall(function()
+        BuyTrail:FireServer(trailName)
+    end)
+
+    if success then
+        task.wait(0.25)
+
+        pcall(function()
+            EquipTrail:FireServer(trailName)
+        end)
+    end
+end
+
+local function StartAutoTrail()
+    AutoTrailConnectionId = AutoTrailConnectionId + 1
+    local myConnectionId = AutoTrailConnectionId
+
+    task.spawn(function()
+        while AutoTrailEnabled and myConnectionId == AutoTrailConnectionId do
+            ProcessAutoTrail()
+            task.wait(1)
+        end
+    end)
+end
+
+MainSection:Toggle({
+    Name = "Auto Trail",
+    Flag = "AutoTrail",
+    Default = false,
+    Callback = function(state)
+        AutoTrailEnabled = state
+
+        if state then
+            StartAutoTrail()
+        else
+            AutoTrailConnectionId = AutoTrailConnectionId + 1
+        end
+    end,
+})
+
+-- ==================== AUTO WORLD ====================
+
+local AutoWorldEnabled = false
+local SelectedAutoWorld = 1
+local AutoWorldConnectionId = 0
+
+local function StartAutoWorld()
+    AutoWorldConnectionId = AutoWorldConnectionId + 1
+    local myConnectionId = AutoWorldConnectionId
+
+    task.spawn(function()
+        while AutoWorldEnabled and myConnectionId == AutoWorldConnectionId do
+            pcall(function()
+                ReplicatedStorage
+                    :WaitForChild("Remotes")
+                    :WaitForChild("TeleportWorld")
+                    :FireServer(SelectedAutoWorld)
+            end)
+
+            task.wait(1)
+        end
+    end)
+end
+
+MainSection:Toggle({
+    Name = "Auto World",
+    Flag = "AutoWorld",
+    Default = false,
+    Callback = function(state)
+        AutoWorldEnabled = state
+
+        if state then
+            StartAutoWorld()
+        else
+            AutoWorldConnectionId = AutoWorldConnectionId + 1
+        end
+    end,
+})
+
+MainSection:Dropdown({
+    Name = "World",
+    Flag = "AutoWorldSelection",
+    Items = {
+        "World 1",
+        "World 2",
+        "World 3",
+        "World 4",
+        "World 5",
+    },
+    Default = "World 1",
+    Multi = false,
+    Callback = function(value)
+        local worldNumber = tonumber(tostring(value):match("%d+"))
+
+        if worldNumber then
+            SelectedAutoWorld = worldNumber
+        end
+    end,
+})
+
+-- ==================== AUTO WIN ====================
+
+local AutoWinSection = AutoWinPage:Section({
+    Name = "Auto Win",
+    Side = 1,
+})
+
+local AutoWinEnabled = false
+local SelectedWorld = "World 1"
+local AutoWinDelay = 3
+local AutoWinConnectionId = 0
+
+local WorldCFrames = {
+    ["World 1"] = CFrame.new(
+        -9463.662109375,
+        385.79046630859375,
+        -254.66766357421875,
+        0, 0, 1,
+        0, 1, 0,
+        -1, 0, 0
+    ),
+    ["World 2"] = CFrame.new(
+        -3605.38281,
+        151.340485,
+        -9378.48828,
+        0, 0, 1,
+        0, 1, 0,
+        -1, 0, 0
+    ),
+    ["World 3"] = CFrame.new(
+        -8080.57617,
+        288.596436,
+        2740.25024,
+        0, 0, 1,
+        0, 1, 0,
+        -1, 0, 0
+    ),
+    ["World 4"] = CFrame.new(
+        -7764.45508,
+        30.7904358,
+        5775.25,
+        0, 0, 1,
+        0, 1, 0,
+        -1, 0, 0
+    ),
+    ["World 5"] = CFrame.new(
+        -2793.73828,
+        296.291992,
+        7808.25537,
+        -1, 0, 0,
+        0, 1, 0,
+        0, 0, -1
+    ),
+}
+
+local function TeleportToSelectedWorld()
+    local character = LocalPlayer.Character
+
+    if not character then
+        return
+    end
+
+    local humanoidRootPart =
+        character:FindFirstChild("HumanoidRootPart")
+
+    if not humanoidRootPart then
+        return
+    end
+
+    local targetCFrame = WorldCFrames[SelectedWorld]
+
+    if targetCFrame then
+        humanoidRootPart.CFrame = targetCFrame
+    end
+end
+
+local function StartAutoWin()
+    AutoWinConnectionId = AutoWinConnectionId + 1
+    local myConnectionId = AutoWinConnectionId
+
+    task.spawn(function()
+        while AutoWinEnabled and myConnectionId == AutoWinConnectionId do
+            TeleportToSelectedWorld()
+            task.wait(AutoWinDelay)
+        end
+    end)
+end
+
+AutoWinSection:Toggle({
+    Name = "Auto Win",
+    Flag = "AutoWin",
+    Default = false,
+    Callback = function(state)
+        AutoWinEnabled = state
+
+        if state then
+            StartAutoWin()
+        else
+            AutoWinConnectionId = AutoWinConnectionId + 1
+        end
+    end,
+})
+
+AutoWinSection:Dropdown({
+    Name = "World",
+    Flag = "AutoWinWorld",
+    Items = {
+        "World 1",
+        "World 2",
+        "World 3",
+        "World 4",
+        "World 5",
+    },
+    Default = "World 1",
+    Multi = false,
+    Callback = function(value)
+        SelectedWorld = tostring(value)
+    end,
+})
+
+AutoWinSection:Slider({
+    Name = "Auto Win Delay",
+    Flag = "AutoWinDelay",
+    Default = AutoWinDelay,
+    Min = 0.1,
+    Max = 10,
+    Callback = function(value)
+        AutoWinDelay = tonumber(value) or AutoWinDelay
+    end,
+})
+
+-- ==================== AUTO BUY ====================
+
+local AutoBuySection = AutoBuyPage:Section({
+    Name = "Auto Buy",
+    Side = 1,
+})
+
+local AutoBuyEnabled = false
+local AutoBuyConnectionId = 0
+local SelectedMinimumRarity = "Common"
+local SelectedEquipPreset = "Wins"
+local AutoBuyDebug = false
+
+local CharmRarityOrder = {
+    Common = 1,
+    Rare = 2,
+    Epic = 3,
+    Legendary = 4,
+    Mythic = 5,
+    Secret = 6,
+}
+
+local AutoBuyRarities = {
+    "Common",
+    "Rare",
+    "Epic",
+    "Legendary",
+    "Mythic",
+    "Secret",
+}
+
+local AutoBuyPresets = {
+    "Wins",
+    "Speed",
+}
+
+local function GetCharmRarityValue(rarity)
+    return CharmRarityOrder[tostring(rarity)] or 0
+end
+
+local function IsCharmRarityAllowed(rarity)
+    return GetCharmRarityValue(rarity) >= GetCharmRarityValue(SelectedMinimumRarity)
+end
+
+local function GetCharmShopData()
+    local Data = LocalPlayer:FindFirstChild("Data")
+    if not Data then return nil end
+
+    local CharmShop = Data:FindFirstChild("CharmShop")
+    if not CharmShop then return nil end
+
+    local WorldValue = Data:FindFirstChild("World")
+    if not WorldValue then return nil end
+
+    return CharmShop:FindFirstChild("World" .. tostring(WorldValue.Value))
+end
+
+local function GetCharmConfig()
+    local success, result = pcall(function()
+        return require(
+            ReplicatedStorage
+                :WaitForChild("Config")
+                :WaitForChild("Charms")
+        )
+    end)
+
+    if success then
+        return result
+    end
+
+    return nil
+end
+
+local CharmsConfig = GetCharmConfig()
+
+local function GetWorldCharmItems()
+    if not CharmsConfig then return nil end
+
+    local Data = LocalPlayer:FindFirstChild("Data")
+    if not Data then return nil end
+
+    local WorldValue = Data:FindFirstChild("World")
+    if not WorldValue then return nil end
+
+    local worldItems =
+        CharmsConfig.Items
+        and CharmsConfig.Items["World" .. tostring(WorldValue.Value)]
+
+    if not worldItems then return nil end
+
+    local Secret = CharmsConfig.Items.Secret
+    if not Secret then return worldItems end
+
+    local result = {}
+
+    for name, charmData in pairs(worldItems) do
+        result[name] = charmData
+    end
+
+    for name, charmData in pairs(Secret) do
+        result[name] = charmData
+    end
+
+    return result
+end
+
+local function CanAffordCharm(charmData)
+    if not charmData then return false end
+
+    local Data = LocalPlayer:FindFirstChild("Data")
+    if not Data then return false end
+
+    local Wins = Data:FindFirstChild("Wins")
+    if not Wins then return false end
+
+    local success, result = pcall(function()
+        local BigNum = require(
+            ReplicatedStorage
+                :WaitForChild("Util")
+                :WaitForChild("BigNum")
+        )
+
+        return BigNum.GreaterEqual(Wins, charmData.Price)
+    end)
+
+    return success and result == true
+end
+
+local function EquipBestCharms()
+    pcall(function()
+        ReplicatedStorage
+            :WaitForChild("Remotes")
+            :WaitForChild("EquipBestCharms")
+            :FireServer(SelectedEquipPreset)
+    end)
+end
+
+local function BuyCharmSlot(slotNumber)
+    local CharmShop = GetCharmShopData()
+    if not CharmShop then return false end
+
+    local Slot = CharmShop:FindFirstChild("Slot" .. tostring(slotNumber))
+    local Bought = CharmShop:FindFirstChild("Bought" .. tostring(slotNumber))
+
+    if not Slot or not Bought then return false end
+    if Slot.Value == "" or Bought.Value then return false end
+
+    local CharmItems = GetWorldCharmItems()
+    if not CharmItems then return false end
+
+    local charmData = CharmItems[Slot.Value]
+    if not charmData then return false end
+
+    if not IsCharmRarityAllowed(charmData.Rarity) then
+        return false
+    end
+
+    if not CanAffordCharm(charmData) then
+        return false
+    end
+
+    local itemName = tostring(Slot.Value)
+
+    local purchaseSuccess = pcall(function()
+        ReplicatedStorage
+            :WaitForChild("Remotes")
+            :WaitForChild("BuyCharm")
+            :FireServer(slotNumber)
+    end)
+
+    if not purchaseSuccess then
+        return false
+    end
+
+    if AutoBuyDebug then
+        print("Purchased item: " .. itemName)
+    end
+
+    task.wait(0.25)
+    EquipBestCharms()
+
+    return true
+end
+
+local function ProcessAutoBuy()
+    local CharmShop = GetCharmShopData()
+    if not CharmShop then return end
+
+    for slotNumber = 1, 3 do
+        if not AutoBuyEnabled then break end
+
+        BuyCharmSlot(slotNumber)
+        task.wait(0.25)
+    end
+end
+
+local function StartAutoBuy()
+    AutoBuyConnectionId = AutoBuyConnectionId + 1
+    local myConnectionId = AutoBuyConnectionId
+
+    task.spawn(function()
+        while AutoBuyEnabled and myConnectionId == AutoBuyConnectionId do
+            ProcessAutoBuy()
+            task.wait(1)
+        end
+    end)
+end
+
+AutoBuySection:Toggle({
+    Name = "Auto Buy",
+    Flag = "AutoBuy",
+    Default = false,
+    Callback = function(state)
+        AutoBuyEnabled = state
+
+        if state then
+            StartAutoBuy()
+        else
+            AutoBuyConnectionId = AutoBuyConnectionId + 1
+        end
+    end,
+})
+
+AutoBuySection:Toggle({
+    Name = "Buy Debug",
+    Flag = "BuyDebug",
+    Default = false,
+    Callback = function(state)
+        AutoBuyDebug = state
+    end,
+})
+
+AutoBuySection:Dropdown({
+    Name = "Minimum Rarity",
+    Flag = "AutoBuyMinimumRarity",
+    Items = AutoBuyRarities,
+    Default = "Common",
+    Multi = false,
+    Callback = function(value)
+        local selected = tostring(value)
+
+        if CharmRarityOrder[selected] then
+            SelectedMinimumRarity = selected
+        end
+    end,
+})
+
+AutoBuySection:Dropdown({
+    Name = "Equip Best Preset",
+    Flag = "AutoBuyEquipPreset",
+    Items = AutoBuyPresets,
+    Default = "Wins",
+    Multi = false,
+    Callback = function(value)
+        local selected = tostring(value)
+
+        if selected == "Wins" or selected == "Speed" then
+            SelectedEquipPreset = selected
+        end
+    end,
+})
+
+-- ==================== AUTO FUSE ====================
+
+local AutoFuseSection = AutoFusePage:Section({
+    Name = "Auto Fuse",
+    Side = 1,
+})
+
+local AutoFuseEnabled = false
+local AutoFuseConnectionId = 0
+local AutoFuseDelay = 0.5
+local SelectedAutoFuseEquipPreset = "Wins"
+
+local function GetCharmMutation(charm)
+    local mutation = charm:GetAttribute("Mutation")
+
+    if mutation == nil then
+        return "Normal"
+    end
+
+    mutation = tostring(mutation)
+
+    if mutation == "" or mutation == "None" then
+        return "Normal"
+    end
+
+    return mutation
+end
+
+local function GetCharmStars(charm)
+    return tonumber(charm:GetAttribute("Stars")) or 0
+end
+
+local function IsCharmLocked(charm)
+    return charm:GetAttribute("Locked") == true
+end
+
+local function GetCharmName(charm)
+    local charmName = charm:GetAttribute("CharmName")
+
+    if charmName == nil then
+        return nil
+    end
+
+    charmName = tostring(charmName)
+
+    if charmName == "" then
+        return nil
+    end
+
+    return charmName
+end
+
+local function GetFuseGroups()
+    local Data = LocalPlayer:FindFirstChild("Data")
+    if not Data then return {} end
+
+    local Charms = Data:FindFirstChild("Charms")
+    if not Charms then return {} end
+
+    local groups = {}
+
+    for _, charm in ipairs(Charms:GetChildren()) do
+        if charm:IsA("Folder") and not IsCharmLocked(charm) then
+            local charmName = GetCharmName(charm)
+
+            if charmName then
+                local stars = GetCharmStars(charm)
+                local mutation = GetCharmMutation(charm)
+
+                local groupKey =
+                    charmName
+                    .. "|"
+                    .. tostring(stars)
+                    .. "|"
+                    .. mutation
+
+                if not groups[groupKey] then
+                    groups[groupKey] = {
+                        CharmName = charmName,
+                        Stars = stars,
+                        Mutation = mutation,
+                        UUIDs = {},
+                    }
+                end
+
+                table.insert(groups[groupKey].UUIDs, charm.Name)
+            end
+        end
+    end
+
+    return groups
+end
+
+local function EquipBestFusePreset()
+    pcall(function()
+        ReplicatedStorage
+            :WaitForChild("Remotes")
+            :WaitForChild("EquipBestCharms")
+            :FireServer(SelectedAutoFuseEquipPreset)
+    end)
+end
+
+local function FuseThreeCharms(uuid1, uuid2, uuid3)
+    if not uuid1 or not uuid2 or not uuid3 then
+        return false
+    end
+
+    local success = pcall(function()
+        ReplicatedStorage
+            :WaitForChild("Remotes")
+            :WaitForChild("FuseCharms")
+            :FireServer({
+                uuid1,
+                uuid2,
+                uuid3,
+            })
+    end)
+
+    return success
+end
+
+local function ProcessAutoFuse()
+    local groups = GetFuseGroups()
+
+    for _, group in pairs(groups) do
+        if not AutoFuseEnabled then
+            break
+        end
+
+        if #group.UUIDs >= 3 then
+            local uuid1 = group.UUIDs[1]
+            local uuid2 = group.UUIDs[2]
+            local uuid3 = group.UUIDs[3]
+
+            local success =
+                FuseThreeCharms(uuid1, uuid2, uuid3)
+
+            if success then
+                task.wait(AutoFuseDelay)
+                EquipBestFusePreset()
+            end
+
+            break
+        end
+    end
+end
+
+local function StartAutoFuse()
+    AutoFuseConnectionId = AutoFuseConnectionId + 1
+    local myConnectionId = AutoFuseConnectionId
+
+    task.spawn(function()
+        while AutoFuseEnabled and myConnectionId == AutoFuseConnectionId do
+            ProcessAutoFuse()
+            task.wait(AutoFuseDelay)
+        end
+    end)
+end
+
+AutoFuseSection:Toggle({
+    Name = "Auto Fuse",
+    Flag = "AutoFuse",
+    Default = false,
+    Callback = function(state)
+        AutoFuseEnabled = state
+
+        if state then
+            StartAutoFuse()
+        else
+            AutoFuseConnectionId = AutoFuseConnectionId + 1
+        end
+    end,
+})
+
+AutoFuseSection:Dropdown({
+    Name = "Equip Best Preset",
+    Flag = "AutoFuseEquipPreset",
+    Items = {
+        "Wins",
+        "Speed",
+    },
+    Default = "Wins",
+    Multi = false,
+    Callback = function(value)
+        local selected = tostring(value)
+
+        if selected == "Wins" or selected == "Speed" then
+            SelectedAutoFuseEquipPreset = selected
+        end
+    end,
+})
+
+AutoFuseSection:Slider({
+    Name = "Fuse Delay",
+    Flag = "AutoFuseDelay",
+    Default = AutoFuseDelay,
+    Min = 0.1,
+    Max = 3,
+    Callback = function(value)
+        AutoFuseDelay = tonumber(value) or AutoFuseDelay
+    end,
+})
+
+-- ==================== PLAYER ====================
+
+local PlayerSection = PlayerPage:Section({
+    Name = "Player",
+    Side = 1,
+})
+
+-- ==================== FLY ====================
+
+local FlyEnabled = false
+local FlySpeed = 50
+local FlyBodyVelocity = nil
+local FlyConnection = nil
+
+local function StartFly()
+    local character = LocalPlayer.Character
+    if not character then return end
+
+    local humanoidRootPart =
+        character:FindFirstChild("HumanoidRootPart")
+
+    if not humanoidRootPart then return end
+
+    if FlyConnection then
+        FlyConnection:Disconnect()
+        FlyConnection = nil
+    end
+
+    if FlyBodyVelocity then
+        FlyBodyVelocity:Destroy()
+        FlyBodyVelocity = nil
+    end
+
+    FlyBodyVelocity = Instance.new("BodyVelocity")
+    FlyBodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    FlyBodyVelocity.Velocity = Vector3.zero
+    FlyBodyVelocity.Parent = humanoidRootPart
+
+    FlyConnection = RunService.RenderStepped:Connect(function()
+        if not FlyEnabled or not FlyBodyVelocity then
+            return
+        end
+
+        local camera = workspace.CurrentCamera
+        if not camera then return end
+
+        local moveDirection = Vector3.zero
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveDirection += camera.CFrame.LookVector
+        end
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveDirection -= camera.CFrame.LookVector
+        end
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveDirection -= camera.CFrame.RightVector
+        end
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveDirection += camera.CFrame.RightVector
+        end
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveDirection += Vector3.new(0, 1, 0)
+        end
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveDirection -= Vector3.new(0, 1, 0)
+        end
+
+        if moveDirection.Magnitude > 0 then
+            moveDirection = moveDirection.Unit * FlySpeed
+        end
+
+        FlyBodyVelocity.Velocity = moveDirection
+    end)
+end
+
+local function StopFly()
+    FlyEnabled = false
+
+    if FlyConnection then
+        FlyConnection:Disconnect()
+        FlyConnection = nil
+    end
+
+    if FlyBodyVelocity then
+        FlyBodyVelocity:Destroy()
+        FlyBodyVelocity = nil
+    end
+end
+
+PlayerSection:Toggle({
+    Name = "Fly",
+    Flag = "Fly",
+    Default = false,
+    Callback = function(state)
+        FlyEnabled = state
+
+        if state then
+            StartFly()
+        else
+            StopFly()
+        end
+    end,
+})
+
+PlayerSection:Slider({
+    Name = "Fly Speed",
+    Flag = "FlySpeedSlider",
+    Default = FlySpeed,
+    Min = 10,
+    Max = 300,
+    Callback = function(value)
+        FlySpeed = tonumber(value) or FlySpeed
+    end,
+})
+
+-- ==================== SPEED HACK ====================
+
+local SpeedHackEnabled = false
+local SpeedHackValue = 50
+local OriginalWalkSpeed = nil
+
+local function StartSpeedHack()
+    local character = LocalPlayer.Character
+    if not character then return end
+
+    local humanoid =
+        character:FindFirstChildOfClass("Humanoid")
+
+    if humanoid then
+        if OriginalWalkSpeed == nil then
+            OriginalWalkSpeed = humanoid.WalkSpeed
+        end
+
+        humanoid.WalkSpeed = SpeedHackValue
+    end
+end
+
+local function StopSpeedHack()
+    SpeedHackEnabled = false
+
+    local character = LocalPlayer.Character
+
+    if character then
+        local humanoid =
+            character:FindFirstChildOfClass("Humanoid")
+
+        if humanoid and OriginalWalkSpeed ~= nil then
+            humanoid.WalkSpeed = OriginalWalkSpeed
+        end
+    end
+
+    OriginalWalkSpeed = nil
+end
+
+PlayerSection:Toggle({
+    Name = "SpeedHack",
+    Flag = "SpeedHack",
+    Default = false,
+    Callback = function(state)
+        SpeedHackEnabled = state
+
+        if state then
+            StartSpeedHack()
+        else
+            StopSpeedHack()
+        end
+    end,
+})
+
+PlayerSection:Slider({
+    Name = "Speed Hack Value",
+    Flag = "SpeedHackSlider",
+    Default = SpeedHackValue,
+    Min = 16,
+    Max = 300,
+    Callback = function(value)
+        SpeedHackValue = tonumber(value) or SpeedHackValue
+
+        if SpeedHackEnabled then
+            StartSpeedHack()
+        end
+    end,
+})
+
+-- ==================== NOCLIP ====================
+
+local NoClipEnabled = false
+local NoClipConnection = nil
+
+local function StartNoClip()
+    if NoClipConnection then
+        NoClipConnection:Disconnect()
+        NoClipConnection = nil
+    end
+
+    NoClipConnection = RunService.Stepped:Connect(function()
+        if not NoClipEnabled then
+            return
+        end
+
+        local character = LocalPlayer.Character
+        if not character then return end
+
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end)
+end
+
+local function StopNoClip()
+    NoClipEnabled = false
+
+    if NoClipConnection then
+        NoClipConnection:Disconnect()
+        NoClipConnection = nil
+    end
+
+    local character = LocalPlayer.Character
+
+    if character then
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
+        end
+    end
+end
+
+PlayerSection:Toggle({
+    Name = "NoClip",
+    Flag = "NoClip",
+    Default = false,
+    Callback = function(state)
+        NoClipEnabled = state
+
+        if state then
+            StartNoClip()
+        else
+            StopNoClip()
+        end
+    end,
+})
+
+-- ==================== ANTI DEATH ====================
+
+local AntiDeathEnabled = false
+local AntiDeathConnection = nil
+local AntiDeathHealthConnection = nil
+
+local function SetupAntiDeath()
+    if AntiDeathConnection then
+        AntiDeathConnection:Disconnect()
+        AntiDeathConnection = nil
+    end
+
+    if AntiDeathHealthConnection then
+        AntiDeathHealthConnection:Disconnect()
+        AntiDeathHealthConnection = nil
+    end
+
+    local character = LocalPlayer.Character
+    if not character then return end
+
+    local humanoid =
+        character:FindFirstChildOfClass("Humanoid")
+
+    if not humanoid then return end
+
+    AntiDeathConnection =
+        RunService.Heartbeat:Connect(function()
+            if not AntiDeathEnabled then
+                return
+            end
+
+            local currentCharacter = LocalPlayer.Character
+            if not currentCharacter then return end
+
+            local currentHumanoid =
+                currentCharacter:FindFirstChildOfClass("Humanoid")
+
+            if not currentHumanoid then return end
+
+            pcall(function()
+                currentHumanoid:SetStateEnabled(
+                    Enum.HumanoidStateType.FallingDown,
+                    false
+                )
+
+                currentHumanoid:SetStateEnabled(
+                    Enum.HumanoidStateType.Ragdoll,
+                    false
+                )
+
+                currentHumanoid:SetStateEnabled(
+                    Enum.HumanoidStateType.Physics,
+                    false
+                )
+
+                currentHumanoid:SetStateEnabled(
+                    Enum.HumanoidStateType.Dead,
+                    false
+                )
+            end)
+
+            if currentHumanoid.Health <= 0 then
+                pcall(function()
+                    currentHumanoid.Health =
+                        currentHumanoid.MaxHealth
+                end)
+            end
+        end)
+
+    AntiDeathHealthConnection =
+        humanoid.HealthChanged:Connect(function(health)
+            if not AntiDeathEnabled then
+                return
+            end
+
+            if health <= 0 then
+                pcall(function()
+                    humanoid.Health =
+                        humanoid.MaxHealth
+                end)
+            end
+        end)
+end
+
+local function StopAntiDeath()
+    AntiDeathEnabled = false
+
+    if AntiDeathConnection then
+        AntiDeathConnection:Disconnect()
+        AntiDeathConnection = nil
+    end
+
+    if AntiDeathHealthConnection then
+        AntiDeathHealthConnection:Disconnect()
+        AntiDeathHealthConnection = nil
+    end
+
+    local character = LocalPlayer.Character
+
+    if character then
+        local humanoid =
+            character:FindFirstChildOfClass("Humanoid")
+
+        if humanoid then
+            pcall(function()
+                humanoid:SetStateEnabled(
+                    Enum.HumanoidStateType.FallingDown,
+                    true
+                )
+
+                humanoid:SetStateEnabled(
+                    Enum.HumanoidStateType.Ragdoll,
+                    true
+                )
+
+                humanoid:SetStateEnabled(
+                    Enum.HumanoidStateType.Physics,
+                    true
+                )
+
+                humanoid:SetStateEnabled(
+                    Enum.HumanoidStateType.Dead,
+                    true
+                )
+            end)
+        end
+    end
+end
+
+PlayerSection:Toggle({
+    Name = "AntiDeath",
+    Flag = "AntiDeath",
+    Default = false,
+    Callback = function(state)
+        AntiDeathEnabled = state
+
+        if state then
+            SetupAntiDeath()
+        else
+            StopAntiDeath()
+        end
+    end,
+})
+
+-- ==================== CHARACTER RESPAWN ====================
+
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+
+    if FlyEnabled then
+        StartFly()
+    end
+
+    if SpeedHackEnabled then
+        OriginalWalkSpeed = nil
+        StartSpeedHack()
+    end
+
+    if NoClipEnabled then
+        StartNoClip()
+    end
+
+    if AntiDeathEnabled then
+        SetupAntiDeath()
+    end
+end)
+
+-- ==================== UNLOAD ====================
+
+local UnloadSection = UnloadPage:Section({
+    Name = "Unload",
+    Side = 1,
+})
+
+UnloadSection:Button({
+    Name = "Unload Script",
+    Callback = function()
+        AutoRebirthEnabled = false
+        AutoRebirthConnectionId = AutoRebirthConnectionId + 1
+
+        AutoAuraEnabled = false
+        AutoAuraConnectionId = AutoAuraConnectionId + 1
+
+        AutoTrailEnabled = false
+        AutoTrailConnectionId = AutoTrailConnectionId + 1
+
+        AutoWorldEnabled = false
+        AutoWorldConnectionId = AutoWorldConnectionId + 1
+
+        AutoWinEnabled = false
+        AutoWinConnectionId = AutoWinConnectionId + 1
+
+        AutoBuyEnabled = false
+        AutoBuyConnectionId = AutoBuyConnectionId + 1
+
+        AutoFuseEnabled = false
+        AutoFuseConnectionId = AutoFuseConnectionId + 1
+
+        StopFly()
+        StopSpeedHack()
+        StopNoClip()
+        StopAntiDeath()
+
+        pcall(function()
+            KeybindList:Destroy()
+        end)
+
+        task.defer(function()
+            task.wait(0.05)
+
+            pcall(function()
+                if Library and Library.Unload then
+                    Library:Unload()
+                end
+            end)
+        end)
+    end,
+})
