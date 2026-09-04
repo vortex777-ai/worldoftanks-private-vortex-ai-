@@ -200,7 +200,7 @@ local Window = Library:Window({
         "JulyScripts",
 
     SubName =
-        "Characters",
+        "BloxStrike",
 
     Logo =
         "rbxassetid://116255434488074"
