@@ -1,12 +1,4 @@
--- ============================================================
--- JulyScripts
--- Characters ESP + Silent Aim + Skin Changer + Handchams + Weapon Chams + Player Chams (Wallhack) + Knife Skin Changer
--- Stellar GUI
--- ============================================================
 
--- ============================================================
--- LIBRARY
--- ============================================================
 
 local Library = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/vortex777-ai/ui-worldofS-st/f27d0e121266420107c5abf4a25751b79f00a509/Stellar.lua"
@@ -16,9 +8,6 @@ if not Library then
     return
 end
 
--- ============================================================
--- SERVICES
--- ============================================================
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -34,19 +23,92 @@ local CharactersFolder =
 
 local isUnloaded = false
 
--- ============================================================
--- WEAPON MODS
--- ============================================================
-
 local noSpreadEnabled = false
 local noRecoilEnabled = false
+local instaRevolverEnabled = false
 
 local noSpreadHookInstalled = false
 local noRecoilHookInstalled = false
+local instaRevolverHookInstalled = false
 
 local OriginalGetTrueSpread = nil
 local OriginalSetWeaponRecoil = nil
 local OriginalWeaponKick = nil
+local OriginalStartRevolverCharge = nil
+
+local function InstallInstaRevolverHook()
+    if instaRevolverHookInstalled then
+        return true
+    end
+
+    local ok, Weapon = pcall(function()
+        return require(
+            ReplicatedStorage
+                :WaitForChild("Components")
+                :WaitForChild("Weapon")
+        )
+    end)
+
+    if not ok or not Weapon or type(Weapon.startRevolverCharge) ~= "function" then
+        return false
+    end
+
+    local original = Weapon.startRevolverCharge
+    local upvalues = {}
+
+    pcall(function()
+        upvalues = debug.getupvalues(original) or {}
+    end)
+
+    local chargeCallback = upvalues[6]
+
+    if typeof(hookfunction) == "function" then
+        local old
+        old = hookfunction(
+            Weapon.startRevolverCharge,
+            function(self, p)
+                old(self, p)
+
+                if not instaRevolverEnabled or isUnloaded then
+                    return
+                end
+
+                if self.IsChargeFiring then
+                    if chargeCallback then
+                        pcall(chargeCallback, self)
+                    elseif (self.Rounds or 0) > 0 then
+                        self.CurrentWalkSpeedOverride = nil
+                        pcall(self.shoot, self, "Primary")
+                    end
+                end
+            end
+        )
+
+        OriginalStartRevolverCharge = old
+    else
+        Weapon.startRevolverCharge = function(self, p)
+            original(self, p)
+
+            if not instaRevolverEnabled or isUnloaded then
+                return
+            end
+
+            if self.IsChargeFiring then
+                if chargeCallback then
+                    pcall(chargeCallback, self)
+                elseif (self.Rounds or 0) > 0 then
+                    self.CurrentWalkSpeedOverride = nil
+                    pcall(self.shoot, self, "Primary")
+                end
+            end
+        end
+
+        OriginalStartRevolverCharge = original
+    end
+
+    instaRevolverHookInstalled = true
+    return true
+end
 
 local function InstallWeaponHooks()
 
@@ -183,9 +245,14 @@ local function InstallWeaponHooks()
         end
     end
 
+    if instaRevolverEnabled and not instaRevolverHookInstalled then
+        InstallInstaRevolverHook()
+    end
+
     return
         noSpreadHookInstalled
         or noRecoilHookInstalled
+        or instaRevolverHookInstalled
 end
 
 InstallWeaponHooks()
@@ -3244,6 +3311,35 @@ WeaponModsSection:Toggle({
         end
 })
 
+WeaponModsSection:Toggle({
+    Name =
+        "Insta Revolver",
+
+    Flag =
+        "InstaRevolver",
+
+    Default =
+        false,
+
+    Callback =
+        function(value)
+
+            if isUnloaded then
+                return
+            end
+
+            instaRevolverEnabled =
+                value == true
+
+            if instaRevolverEnabled
+                and not instaRevolverHookInstalled then
+
+                InstallInstaRevolverHook()
+            end
+        end
+})
+
+
 -- ============================================================
 -- VISUALS UI (ESP + Handchams + Weapon Chams + Player Chams)
 -- ============================================================
@@ -4640,6 +4736,20 @@ KnifeSkinSection:Button({
 -- ============================================================
 
 local KeybindSection = SettingsPage:Section({Name = "Keybinds", Side = 1})
+
+local MenuKeybindLabel = KeybindSection:Label("Menu Key")
+MenuKeybindLabel:Keybind({
+    Flag = "MenuKeybind",
+    Default = Enum.KeyCode.RightControl,
+    Mode = "Toggle",
+    Callback = function()
+        local data = Library.Flags["MenuKeybind"]
+        if type(data) == "table" and data.Key then
+            Library.MenuKeybind = tostring(data.Key)
+        end
+    end
+})
+
 KeybindSection:Toggle({
     Name = "Keybind List",
     Flag = "KeybindListVisible",
@@ -4663,8 +4773,22 @@ UnloadSection:Button({
 
         noSpreadEnabled = false
         noRecoilEnabled = false
+        instaRevolverEnabled = false
 
-        SilentAim.Enabled = false
+        if OriginalStartRevolverCharge then
+            pcall(function()
+                local Weapon = require(
+                    ReplicatedStorage
+                        :WaitForChild("Components")
+                        :WaitForChild("Weapon")
+                )
+                Weapon.startRevolverCharge = OriginalStartRevolverCharge
+            end)
+        end
+
+        instaRevolverHookInstalled = false
+       OriginalStartRevolverCharge = nil
+SilentAim.Enabled = false
         SilentAim.Target = nil
         pcall(function()
             RunService:UnbindFromRenderStep("JulyScripts_SilentAim")
