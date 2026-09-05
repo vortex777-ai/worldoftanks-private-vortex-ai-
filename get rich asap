@@ -1,0 +1,2333 @@
+getgenv().JulyScripts = getgenv().JulyScripts or {}
+
+if getgenv().JulyScripts.Library then
+    pcall(function()
+        getgenv().JulyScripts.Library:Unload()
+    end)
+
+    task.wait(0.15)
+    getgenv().JulyScripts.Library = nil
+end
+
+local Library = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/vortex777-ai/ui-worldofS-st/refs/heads/main/Stellar.lua"
+))()
+
+getgenv().JulyScripts.Library = Library
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+
+local State = {
+    SpeedHack = false,
+    JumpHack = false,
+    NoClip = false,
+    Fly = false,
+
+    WalkSpeed = 50,
+    JumpPower = 100,
+    FlySpeed = 60,
+
+    AutoInvest = false,
+    InvestmentTierId = nil,
+    InvestmentDurationId = nil,
+
+    AutoTrashCollect = false,
+    AutoBoxHandler = false,
+    AutoDeliveryFood = false,
+    AutoSmugglerContract = false,
+
+    AutoLemonadeStandUpgrade = false,
+    AutoFoodTruckUpgrade = false,
+    AutoGarageSaleUpgrade = false,
+    AutoSupermarketUpgrade = false,
+    AutoGasStationUpgrade = false,
+    AutoTechCompanyUpgrade = false,
+    AutoLogisticsUpgrade = false,
+    AutoRealEstateUpgrade = false,
+    AutoBankUpgrade = false,
+
+    AutoLemonadeCashCollect = false,
+    AutoFoodTruckCashCollect = false,
+    AutoGarageCashCollect = false,
+    AutoLogisticsCashCollect = false,
+    AutoRealEstateCashCollect = false,
+    AutoSupermarketCashCollect = false,
+    AutoGasStationCashCollect = false,
+    AutoTechCompanyCashCollect = false,
+    AutoBankCashCollect = false,
+}
+
+local Character
+local Humanoid
+local RootPart
+
+local SavedWalkSpeed = 16
+local SavedJumpPower = 50
+local SavedUseJumpPower = true
+
+local function UpdateCharacter()
+    Character = LocalPlayer.Character
+
+    if not Character then
+        Humanoid = nil
+        RootPart = nil
+        return
+    end
+
+    Humanoid = Character:FindFirstChildOfClass("Humanoid")
+    RootPart = Character:FindFirstChild("HumanoidRootPart")
+
+    if Humanoid then
+        SavedWalkSpeed = Humanoid.WalkSpeed
+        SavedJumpPower = Humanoid.JumpPower
+        SavedUseJumpPower = Humanoid.UseJumpPower
+    end
+end
+
+UpdateCharacter()
+
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    UpdateCharacter()
+end)
+
+local function GetCharacter()
+    if not Character
+        or not Character.Parent
+        or not Humanoid
+        or not Humanoid.Parent
+        or not RootPart
+        or not RootPart.Parent
+    then
+        UpdateCharacter()
+    end
+
+    return Character, Humanoid, RootPart
+end
+
+local function GetRemoteFolder(FolderName)
+    return ReplicatedStorage:FindFirstChild(FolderName)
+end
+
+local function RemoveStellarUserInfo(Window)
+    pcall(function()
+        if not Window
+            or not Window.Items
+            or not Window.Items["Sidebar"]
+            or not Window.Items["Sidebar"].Instance
+        then
+            return
+        end
+
+        local Sidebar = Window.Items["Sidebar"].Instance
+        local RemoveList = {}
+
+        for _, Child in ipairs(Sidebar:GetChildren()) do
+            if Child:IsA("Frame") then
+                local Remove = false
+
+                if Child.Position.Y.Scale == 1
+                    and Child.Position.Y.Offset == 20
+                    and Child.Size.Y.Offset == 105
+                then
+                    Remove = true
+                end
+
+                if not Remove then
+                    for _, Descendant in ipairs(Child:GetDescendants()) do
+                        if Descendant:IsA("TextLabel") then
+                            if Descendant.Text == LocalPlayer.Name
+                                or Descendant.Text == "Expires:"
+                            then
+                                Remove = true
+                                break
+                            end
+                        end
+                    end
+                end
+
+                if Remove then
+                    table.insert(RemoveList, Child)
+                end
+            end
+        end
+
+        for _, Object in ipairs(RemoveList) do
+            pcall(function()
+                Object:Destroy()
+            end)
+        end
+
+        for _, Child in ipairs(Sidebar:GetChildren()) do
+            if Child:IsA("Frame")
+                and Child.Size.X.Scale == 1
+                and Child.Size.X.Offset == 0
+                and Child.Size.Y.Scale == 0
+                and Child.Size.Y.Offset == 1
+                and Child.Position.Y.Scale == 1
+                and Child.Position.Y.Offset == -85
+            then
+                pcall(function()
+                    Child:Destroy()
+                end)
+            end
+        end
+    end)
+end
+
+local function ApplyMovement()
+    local _, CurrentHumanoid = GetCharacter()
+
+    if not CurrentHumanoid then
+        return
+    end
+
+    if State.SpeedHack then
+        CurrentHumanoid.WalkSpeed = State.WalkSpeed
+    else
+        CurrentHumanoid.WalkSpeed = SavedWalkSpeed
+    end
+
+    if State.JumpHack then
+        CurrentHumanoid.UseJumpPower = true
+        CurrentHumanoid.JumpPower = State.JumpPower
+    else
+        CurrentHumanoid.UseJumpPower = SavedUseJumpPower
+        CurrentHumanoid.JumpPower = SavedJumpPower
+    end
+end
+
+RunService.Heartbeat:Connect(function()
+    if not State.SpeedHack and not State.JumpHack then
+        return
+    end
+
+    pcall(function()
+        ApplyMovement()
+    end)
+end)
+
+RunService.Stepped:Connect(function()
+    if not State.NoClip then
+        return
+    end
+
+    local CurrentCharacter = select(1, GetCharacter())
+
+    if not CurrentCharacter then
+        return
+    end
+
+    pcall(function()
+        for _, Object in ipairs(CurrentCharacter:GetDescendants()) do
+            if Object:IsA("BasePart") then
+                Object.CanCollide = false
+            end
+        end
+    end)
+end)
+
+local FlyVelocity
+local FlyGyro
+
+local function StartFly()
+    local _, _, CurrentRootPart = GetCharacter()
+
+    if not CurrentRootPart then
+        return
+    end
+
+    if FlyVelocity then
+        pcall(function()
+            FlyVelocity:Destroy()
+        end)
+        FlyVelocity = nil
+    end
+
+    if FlyGyro then
+        pcall(function()
+            FlyGyro:Destroy()
+        end)
+        FlyGyro = nil
+    end
+
+    FlyVelocity = Instance.new("BodyVelocity")
+    FlyVelocity.Name = "JulyScriptsFlyVelocity"
+    FlyVelocity.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+    FlyVelocity.Velocity = Vector3.zero
+    FlyVelocity.Parent = CurrentRootPart
+
+    FlyGyro = Instance.new("BodyGyro")
+    FlyGyro.Name = "JulyScriptsFlyGyro"
+    FlyGyro.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+    FlyGyro.P = 10000
+    FlyGyro.CFrame = CurrentRootPart.CFrame
+    FlyGyro.Parent = CurrentRootPart
+end
+
+local function StopFly()
+    if FlyVelocity then
+        pcall(function()
+            FlyVelocity:Destroy()
+        end)
+        FlyVelocity = nil
+    end
+
+    if FlyGyro then
+        pcall(function()
+            FlyGyro:Destroy()
+        end)
+        FlyGyro = nil
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    if not State.Fly then
+        return
+    end
+
+    local _, _, CurrentRootPart = GetCharacter()
+
+    if not CurrentRootPart then
+        return
+    end
+
+    if not FlyVelocity or not FlyVelocity.Parent then
+        StartFly()
+        return
+    end
+
+    local Camera = Workspace.CurrentCamera
+
+    if not Camera then
+        return
+    end
+
+    local Direction = Vector3.zero
+
+    if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+        Direction += Camera.CFrame.LookVector
+    end
+
+    if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+        Direction -= Camera.CFrame.LookVector
+    end
+
+    if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+        Direction -= Camera.CFrame.RightVector
+    end
+
+    if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+        Direction += Camera.CFrame.RightVector
+    end
+
+    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+        Direction += Vector3.yAxis
+    end
+
+    if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+        or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
+    then
+        Direction -= Vector3.yAxis
+    end
+
+    if Direction.Magnitude > 0 then
+        Direction = Direction.Unit
+    end
+
+    FlyVelocity.Velocity = Direction * State.FlySpeed
+
+    FlyGyro.CFrame = CFrame.lookAt(
+        CurrentRootPart.Position,
+        CurrentRootPart.Position + Camera.CFrame.LookVector
+    )
+end)
+
+local function ActivatePrompt(Prompt)
+    if not Prompt or not Prompt:IsA("ProximityPrompt") then
+        return false
+    end
+
+    if typeof(fireproximityprompt) ~= "function" then
+        return false
+    end
+
+    return pcall(function()
+        fireproximityprompt(Prompt, 1)
+    end)
+end
+
+local function GetPrompt(Object, PromptName)
+    if not Object then
+        return nil
+    end
+
+    if PromptName then
+        local Direct = Object:FindFirstChild(PromptName, true)
+
+        if Direct and Direct:IsA("ProximityPrompt") then
+            return Direct
+        end
+    end
+
+    for _, Descendant in ipairs(Object:GetDescendants()) do
+        if Descendant:IsA("ProximityPrompt") then
+            return Descendant
+        end
+    end
+
+    return nil
+end
+
+local function GetObjectCFrame(Object)
+    if not Object then
+        return nil
+    end
+
+    if Object:IsA("BasePart") then
+        return Object.CFrame
+    end
+
+    if Object:IsA("Model") then
+        return Object:GetPivot()
+    end
+
+    for _, Descendant in ipairs(Object:GetDescendants()) do
+        if Descendant:IsA("BasePart") then
+            return Descendant.CFrame
+        end
+    end
+
+    return nil
+end
+
+local function TeleportTo(ObjectOrCFrame)
+    local _, _, CurrentRootPart = GetCharacter()
+
+    if not CurrentRootPart then
+        return false
+    end
+
+    local TargetCFrame
+
+    if typeof(ObjectOrCFrame) == "CFrame" then
+        TargetCFrame = ObjectOrCFrame
+    else
+        TargetCFrame = GetObjectCFrame(ObjectOrCFrame)
+    end
+
+    if not TargetCFrame then
+        return false
+    end
+
+    return pcall(function()
+        CurrentRootPart.CFrame =
+            TargetCFrame + Vector3.new(0, 2.5, 0)
+    end)
+end
+
+local function StartTrashCollect()
+    while State.AutoTrashCollect do
+        local FoundSomething = false
+
+        pcall(function()
+            for _, Object in ipairs(Workspace:GetDescendants()) do
+                if not State.AutoTrashCollect then
+                    break
+                end
+
+                if Object.Name == "StreetTrash" then
+                    local Prompt = GetPrompt(Object)
+
+                    if Prompt then
+                        FoundSomething = true
+                        TeleportTo(Object)
+                        task.wait(0.12)
+                        ActivatePrompt(Prompt)
+                        task.wait(0.18)
+                    end
+                end
+            end
+        end)
+
+        if FoundSomething then
+            task.wait(0.25)
+        else
+            task.wait(0.75)
+        end
+    end
+end
+
+local function StartBoxHandler()
+    while State.AutoBoxHandler do
+        pcall(function()
+            local BoxSpawner =
+                Workspace:FindFirstChild(
+                    "BoxSpawner",
+                    true
+                )
+
+            if BoxSpawner then
+                local InteractionPrompt =
+                    GetPrompt(
+                        BoxSpawner,
+                        "InteractionPrompt"
+                    )
+
+                if InteractionPrompt then
+                    TeleportTo(BoxSpawner)
+                    task.wait(0.12)
+                    ActivatePrompt(InteractionPrompt)
+                    task.wait(0.2)
+                end
+            end
+
+            for Index = 1, 8 do
+                if not State.AutoBoxHandler then
+                    break
+                end
+
+                local Box =
+                    Workspace:FindFirstChild(
+                        "box" .. tostring(Index),
+                        true
+                    )
+
+                if Box then
+                    local Prompt = GetPrompt(Box)
+
+                    if Prompt then
+                        TeleportTo(Box)
+                        task.wait(0.12)
+                        ActivatePrompt(Prompt)
+                        task.wait(0.15)
+                    end
+                end
+            end
+        end)
+
+        task.wait(0.5)
+    end
+end
+
+local function FindDeliveryPrompt(Door)
+    if not Door then
+        return nil
+    end
+
+    for _, Descendant in ipairs(
+        Door:GetDescendants()
+    ) do
+        if Descendant:IsA("ProximityPrompt")
+            and tostring(
+                Descendant.Name
+            ):match(
+                "^DeliveryPrompt_"
+            )
+        then
+            return Descendant
+        end
+    end
+
+    return nil
+end
+
+local function StartDeliveryFood()
+    while State.AutoDeliveryFood do
+        pcall(function()
+            local FoodObject =
+                Workspace:FindFirstChild(
+                    "getfood",
+                    true
+                )
+
+            if FoodObject then
+                local FoodPrompt =
+                    GetPrompt(FoodObject)
+
+                if FoodPrompt then
+                    TeleportTo(FoodObject)
+                    task.wait(0.15)
+                    ActivatePrompt(FoodPrompt)
+                    task.wait(0.4)
+                end
+            end
+
+            for Index = 1, 8 do
+                if not State.AutoDeliveryFood then
+                    break
+                end
+
+                local Door =
+                    Workspace:FindFirstChild(
+                        "Door " .. tostring(Index),
+                        true
+                    )
+
+                if Door then
+                    local DeliveryPrompt =
+                        FindDeliveryPrompt(Door)
+
+                    if DeliveryPrompt then
+                        TeleportTo(Door)
+                        task.wait(0.15)
+                        ActivatePrompt(
+                            DeliveryPrompt
+                        )
+                        task.wait(0.3)
+                    end
+                end
+            end
+        end)
+
+        task.wait(0.5)
+    end
+end
+
+local function StartSmugglerContract()
+    while State.AutoSmugglerContract do
+        pcall(function()
+            local SmuggleJob =
+                Workspace:FindFirstChild(
+                    "smugglejob",
+                    true
+                )
+
+            if SmuggleJob then
+                local Prompt =
+                    GetPrompt(SmuggleJob)
+
+                if Prompt then
+                    TeleportTo(SmuggleJob)
+                    task.wait(0.15)
+                    ActivatePrompt(Prompt)
+                    task.wait(0.4)
+                end
+            end
+
+            local Destinations =
+                Workspace:FindFirstChild(
+                    "SmuggleDestinations",
+                    true
+                )
+
+            if Destinations then
+                for _, Destination in ipairs(
+                    Destinations:GetChildren()
+                ) do
+                    if not State.AutoSmugglerContract then
+                        break
+                    end
+
+                    local Prompt =
+                        GetPrompt(Destination)
+
+                    if Prompt then
+                        TeleportTo(Destination)
+                        task.wait(0.15)
+                        ActivatePrompt(Prompt)
+                        task.wait(0.35)
+                    end
+                end
+            end
+        end)
+
+        task.wait(0.75)
+    end
+end
+
+local function TryRequireConfig(ConfigName)
+    local Module =
+        ReplicatedStorage:FindFirstChild(
+            ConfigName,
+            true
+        )
+
+    if not Module
+        or not Module:IsA("ModuleScript")
+    then
+        return nil
+    end
+
+    local Success, Result =
+        pcall(function()
+            return require(Module)
+        end)
+
+    if Success
+        and type(Result) == "table"
+    then
+        return Result
+    end
+
+    return nil
+end
+
+local function FindEventFolder(EventName)
+    local Folder =
+        ReplicatedStorage:FindFirstChild(
+            EventName,
+            true
+        )
+
+    if not Folder then
+        return nil
+    end
+
+    if Folder:IsA("Folder")
+        or Folder:IsA("Model")
+    then
+        return Folder
+    end
+
+    return nil
+end
+
+local function FindRemote(
+    EventFolder,
+    RemoteName
+)
+    if not EventFolder then
+        return nil
+    end
+
+    local Remote =
+        EventFolder:FindFirstChild(
+            RemoteName,
+            true
+        )
+
+    if Remote
+        and (
+            Remote:IsA("RemoteFunction")
+            or Remote:IsA("RemoteEvent")
+        )
+    then
+        return Remote
+    end
+
+    return nil
+end
+
+local function GetUpgradeCost(
+    Config,
+    Upgrade
+)
+    local Cost =
+        tonumber(
+            Upgrade
+                and Upgrade.Cost
+        )
+        or 0
+
+    local BusinessCostUtil =
+        TryRequireConfig(
+            "BusinessCostUtil"
+        )
+
+    if BusinessCostUtil
+        and type(
+            BusinessCostUtil.GetDiscountedCost
+        ) == "function"
+    then
+        local Success, Result =
+            pcall(function()
+                return BusinessCostUtil:
+                    GetDiscountedCost(
+                        LocalPlayer,
+                        Cost
+                    )
+            end)
+
+        if Success
+            and tonumber(Result)
+        then
+            return tonumber(Result)
+        end
+    end
+
+    return Cost
+end
+
+local function GetPurchasedUpgrades(Data)
+    if type(Data) ~= "table" then
+        return {}
+    end
+
+    if type(
+        Data.PurchasedUpgrades
+    ) == "table"
+    then
+        return Data.PurchasedUpgrades
+    end
+
+    if type(
+        Data.PurchasedUpgradeIds
+    ) == "table"
+    then
+        return Data.PurchasedUpgradeIds
+    end
+
+    return {}
+end
+
+local function HasUpgrade(
+    PurchasedUpgrades,
+    UpgradeId
+)
+    for _, Value in ipairs(
+        PurchasedUpgrades
+    ) do
+        if Value == UpgradeId then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function CreateUpgradeHandler(
+    ConfigNames,
+    EventNames
+)
+    return function()
+        local Config
+
+        for _, ConfigName in ipairs(
+            ConfigNames
+        ) do
+            Config =
+                TryRequireConfig(
+                    ConfigName
+                )
+
+            if Config
+                and type(
+                    Config.Upgrades
+                ) == "table"
+            then
+                break
+            end
+
+            Config = nil
+        end
+
+        if not Config
+            or type(
+                Config.Upgrades
+            ) ~= "table"
+        then
+            return
+        end
+
+        local EventFolder
+
+        for _, EventName in ipairs(
+            EventNames
+        ) do
+            EventFolder =
+                FindEventFolder(
+                    EventName
+                )
+
+            if EventFolder then
+                break
+            end
+        end
+
+        if not EventFolder then
+            return
+        end
+
+        local PerformAction =
+            FindRemote(
+                EventFolder,
+                "PerformAction"
+            )
+
+        local RequestData =
+            FindRemote(
+                EventFolder,
+                "RequestData"
+            )
+
+        if not PerformAction
+            or not RequestData
+        then
+            return
+        end
+
+        if not PerformAction:IsA(
+            "RemoteFunction"
+        )
+            or not RequestData:IsA(
+                "RemoteFunction"
+            )
+        then
+            return
+        end
+
+        local Success, Data =
+            pcall(function()
+                return RequestData:
+                    InvokeServer()
+            end)
+
+        if not Success
+            or type(Data) ~= "table"
+        then
+            return
+        end
+
+        local PurchasedUpgrades =
+            GetPurchasedUpgrades(Data)
+
+        local AvailableUpgrades = {}
+
+        for _, Upgrade in ipairs(
+            Config.Upgrades
+        ) do
+            if type(Upgrade) == "table"
+                and Upgrade.Id ~= nil
+                and not HasUpgrade(
+                    PurchasedUpgrades,
+                    Upgrade.Id
+                )
+            then
+                table.insert(
+                    AvailableUpgrades,
+                    Upgrade
+                )
+            end
+        end
+
+        table.sort(
+            AvailableUpgrades,
+            function(A, B)
+                return GetUpgradeCost(
+                    Config,
+                    A
+                ) < GetUpgradeCost(
+                    Config,
+                    B
+                )
+            end
+        )
+
+        local NextUpgrade =
+            AvailableUpgrades[1]
+
+        if not NextUpgrade then
+            return
+        end
+
+        pcall(function()
+            PerformAction:
+                InvokeServer(
+                    "BuyUpgrade",
+                    {
+                        UpgradeId =
+                            NextUpgrade.Id
+                    }
+                )
+        end)
+    end
+end
+
+local StartLemonadeStandUpgrade =
+    CreateUpgradeHandler(
+        {"LemonadeStandConfig"},
+        {"LemonadeStandEvents"}
+    )
+
+local StartFoodTruckUpgrade =
+    CreateUpgradeHandler(
+        {"FoodTruckConfig"},
+        {"FoodTruckEvents"}
+    )
+
+local StartGarageSaleUpgrade =
+    CreateUpgradeHandler(
+        {"GarageSaleConfig"},
+        {"GarageSaleEvents"}
+    )
+
+local StartSupermarketUpgrade =
+    CreateUpgradeHandler(
+        {"SupermarketConfig"},
+        {"SupermarketEvents"}
+    )
+
+local StartGasStationUpgrade =
+    CreateUpgradeHandler(
+        {"GasStationConfig"},
+        {"GasStationEvents"}
+    )
+
+local StartTechCompanyUpgrade =
+    CreateUpgradeHandler(
+        {"TechCompanyConfig"},
+        {"TechCompanyEvents"}
+    )
+
+local StartLogisticsUpgrade =
+    CreateUpgradeHandler(
+        {"LogisticsConfig"},
+        {"LogisticsEvents"}
+    )
+
+local StartRealEstateUpgrade =
+    CreateUpgradeHandler(
+        {
+            "PropertyConfig",
+            "RealEstateConfig",
+            "MansionConfig"
+        },
+        {
+            "PropertyEvents",
+            "RealEstateEvents",
+            "MansionEvents"
+        }
+    )
+
+local StartBankUpgrade =
+    CreateUpgradeHandler(
+        {"BankConfig"},
+        {"BankEvents"}
+    )
+
+local function StartUpgradeLoop(
+    StateName,
+    Handler
+)
+    task.spawn(function()
+        while State[StateName] do
+            pcall(function()
+                Handler()
+            end)
+
+            task.wait(2)
+        end
+    end)
+end
+
+local function StartCashCollect(
+    StateName,
+    EventsFolderName
+)
+    task.spawn(function()
+        while State[StateName] do
+            pcall(function()
+                local EventsFolder =
+                    GetRemoteFolder(
+                        EventsFolderName
+                    )
+
+                if not EventsFolder then
+                    return
+                end
+
+                local PerformAction =
+                    EventsFolder:
+                        FindFirstChild(
+                            "PerformAction"
+                        )
+
+                if not PerformAction then
+                    PerformAction =
+                        EventsFolder:
+                            FindFirstChild(
+                                "PerformAction",
+                                true
+                            )
+                end
+
+                if not PerformAction then
+                    return
+                end
+
+                if not PerformAction:IsA(
+                    "RemoteFunction"
+                ) then
+                    return
+                end
+
+                local args = {
+                    "CashOut"
+                }
+
+                PerformAction:
+                    InvokeServer(
+                        unpack(args)
+                    )
+            end)
+
+            task.wait(5)
+        end
+    end)
+end
+
+local InvestmentConfig
+local InvestmentEvents
+local InvestmentRequestData
+local InvestmentPerformAction
+
+pcall(function()
+    local ConfigModule =
+        ReplicatedStorage:
+            WaitForChild(
+                "InvestmentConfig",
+                5
+            )
+
+    if ConfigModule
+        and ConfigModule:IsA(
+            "ModuleScript"
+        )
+    then
+        InvestmentConfig =
+            require(ConfigModule)
+    end
+end)
+
+InvestmentEvents =
+    ReplicatedStorage:FindFirstChild(
+        "InvestmentEvents"
+    )
+
+if InvestmentEvents then
+    InvestmentRequestData =
+        InvestmentEvents:
+            FindFirstChild(
+                "RequestData"
+            )
+
+    InvestmentPerformAction =
+        InvestmentEvents:
+            FindFirstChild(
+                "PerformAction"
+            )
+end
+
+local InvestmentAmountItems = {}
+local InvestmentAmountMap = {}
+
+local InvestmentPercentItems = {}
+local InvestmentPercentMap = {}
+
+local function FormatMoney(Value)
+    Value =
+        tonumber(Value)
+        or 0
+
+    if Value >= 1e12 then
+        return string.format(
+            "$%.2fT",
+            Value / 1e12
+        )
+    elseif Value >= 1e9 then
+        return string.format(
+            "$%.2fB",
+            Value / 1e9
+        )
+    elseif Value >= 1e6 then
+        return string.format(
+            "$%.2fM",
+            Value / 1e6
+        )
+    elseif Value >= 1e3 then
+        return string.format(
+            "$%.2fK",
+            Value / 1e3
+        )
+    end
+
+    return "$"
+        .. tostring(Value)
+end
+
+local function BuildInvestmentOptions()
+    table.clear(
+        InvestmentAmountItems
+    )
+
+    table.clear(
+        InvestmentAmountMap
+    )
+
+    table.clear(
+        InvestmentPercentItems
+    )
+
+    table.clear(
+        InvestmentPercentMap
+    )
+
+    if not InvestmentConfig then
+        return
+    end
+
+    if type(
+        InvestmentConfig.Tiers
+    ) == "table"
+    then
+        for _, Tier in ipairs(
+            InvestmentConfig.Tiers
+        ) do
+            if type(Tier) == "table"
+                and Tier.Id ~= nil
+            then
+                local Label =
+                    FormatMoney(
+                        Tier.Amount
+                    )
+
+                table.insert(
+                    InvestmentAmountItems,
+                    Label
+                )
+
+                InvestmentAmountMap[
+                    Label
+                ] = Tier.Id
+
+                if not State.InvestmentTierId then
+                    State.InvestmentTierId =
+                        Tier.Id
+                end
+            end
+        end
+    end
+
+    if type(
+        InvestmentConfig.Durations
+    ) == "table"
+    then
+        for _, Duration in ipairs(
+            InvestmentConfig.Durations
+        ) do
+            if type(Duration) == "table"
+                and Duration.Id ~= nil
+            then
+                local ProfitPercent =
+                    tonumber(
+                        Duration.ProfitPercent
+                    )
+                    or 0
+
+                local Label =
+                    "+"
+                    .. tostring(
+                        ProfitPercent
+                    )
+                    .. "%"
+
+                table.insert(
+                    InvestmentPercentItems,
+                    Label
+                )
+
+                InvestmentPercentMap[
+                    Label
+                ] = Duration.Id
+
+                if not State.InvestmentDurationId then
+                    State.InvestmentDurationId =
+                        Duration.Id
+                end
+            end
+        end
+    end
+end
+
+BuildInvestmentOptions()
+
+local AutoInvestCycle = 0
+
+local function GetInvestmentData()
+    if not InvestmentRequestData then
+        return nil
+    end
+
+    if not InvestmentRequestData:IsA(
+        "RemoteFunction"
+    ) then
+        return nil
+    end
+
+    local Success, Data =
+        pcall(function()
+            return InvestmentRequestData:
+                InvokeServer()
+        end)
+
+    if Success
+        and type(Data) == "table"
+    then
+        return Data
+    end
+
+    return nil
+end
+
+local function PerformInvestmentAction(
+    Action,
+    Data
+)
+    if not InvestmentPerformAction then
+        return false
+    end
+
+    if not InvestmentPerformAction:IsA(
+        "RemoteFunction"
+    ) then
+        return false
+    end
+
+    local Success,
+        Result1,
+        Result2 =
+        pcall(function()
+            return InvestmentPerformAction:
+                InvokeServer(
+                    Action,
+                    Data or {}
+                )
+        end)
+
+    if not Success then
+        return false,
+            Result1
+    end
+
+    return Result1,
+        Result2
+end
+
+local function GetActiveInvestmentSeconds(
+    Data
+)
+    if not Data
+        or type(Data) ~= "table"
+    then
+        return nil
+    end
+
+    local ActiveInvestment =
+        Data.ActiveInvestment
+
+    if not ActiveInvestment then
+        return nil
+    end
+
+    local SecondsLeft =
+        tonumber(
+            ActiveInvestment.SecondsLeft
+        )
+
+    if SecondsLeft
+        and SecondsLeft >= 0
+    then
+        return SecondsLeft
+    end
+
+    return nil
+end
+
+local function AutoInvestOnce()
+    if not InvestmentConfig
+        or not InvestmentRequestData
+        or not InvestmentPerformAction
+    then
+        return false
+    end
+
+    if not State.InvestmentTierId
+        or not State.InvestmentDurationId
+    then
+        return false
+    end
+
+    local Data =
+        GetInvestmentData()
+
+    if not Data then
+        return false
+    end
+
+    if Data.ActiveInvestment then
+        if Data.ActiveInvestment.Ready then
+            PerformInvestmentAction(
+                "Collect",
+                {}
+            )
+
+            task.wait(0.5)
+
+            Data =
+                GetInvestmentData()
+
+            if not Data then
+                return false
+            end
+        else
+            return true
+        end
+    end
+
+    if not Data.ActiveInvestment then
+        local Success =
+            PerformInvestmentAction(
+                "Invest",
+                {
+                    TierId =
+                        State.InvestmentTierId,
+
+                    DurationId =
+                        State.InvestmentDurationId
+                }
+            )
+
+        if not Success then
+            return false
+        end
+
+        task.wait(0.5)
+
+        return true
+    end
+
+    return true
+end
+
+local function StartAutoInvest()
+    AutoInvestCycle += 1
+
+    local CurrentCycle =
+        AutoInvestCycle
+
+    task.spawn(function()
+        while State.AutoInvest
+            and CurrentCycle
+                == AutoInvestCycle
+        do
+            local Data =
+                GetInvestmentData()
+
+            if not Data then
+                task.wait(5)
+                continue
+            end
+
+            if Data.ActiveInvestment then
+                if Data.ActiveInvestment.Ready then
+                    pcall(function()
+                        PerformInvestmentAction(
+                            "Collect",
+                            {}
+                        )
+                    end)
+
+                    task.wait(0.5)
+
+                    pcall(function()
+                        AutoInvestOnce()
+                    end)
+                else
+                    local SecondsLeft =
+                        GetActiveInvestmentSeconds(
+                            Data
+                        )
+
+                    if SecondsLeft
+                        and SecondsLeft > 0
+                    then
+                        local EndTime =
+                            os.clock()
+                            + SecondsLeft
+
+                        while State.AutoInvest
+                            and CurrentCycle
+                                == AutoInvestCycle
+                            and os.clock()
+                                < EndTime
+                        do
+                            local Remaining =
+                                EndTime
+                                - os.clock()
+
+                            task.wait(
+                                math.min(
+                                    Remaining,
+                                    1
+                                )
+                            )
+                        end
+                    else
+                        task.wait(5)
+                    end
+                end
+            else
+                local Success = false
+
+                pcall(function()
+                    Success =
+                        AutoInvestOnce()
+                end)
+
+                if Success then
+                    task.wait(0.5)
+
+                    local NewData =
+                        GetInvestmentData()
+
+                    local SecondsLeft
+
+                    if NewData then
+                        SecondsLeft =
+                            GetActiveInvestmentSeconds(
+                                NewData
+                            )
+                    end
+
+                    if SecondsLeft
+                        and SecondsLeft > 0
+                    then
+                        local EndTime =
+                            os.clock()
+                            + SecondsLeft
+
+                        while State.AutoInvest
+                            and CurrentCycle
+                                == AutoInvestCycle
+                            and os.clock()
+                                < EndTime
+                        do
+                            local Remaining =
+                                EndTime
+                                - os.clock()
+
+                            task.wait(
+                                math.min(
+                                    Remaining,
+                                    1
+                                )
+                            )
+                        end
+                    else
+                        task.wait(5)
+                    end
+                else
+                    task.wait(5)
+                end
+            end
+
+            if not State.AutoInvest
+                or CurrentCycle
+                    ~= AutoInvestCycle
+            then
+                break
+            end
+        end
+    end)
+end
+
+local Window =
+    Library:CreateWindow({
+        Name = "JulyScripts",
+        SubName = "Get  rich asap",
+        Logo = "rbxassetid://116255434488074",
+        WatermarkEnabled = false,
+        SettingsTabEnabled = true
+    })
+
+local PlayerTab =
+    Window:AddTab(
+        "Player",
+        "user-round"
+    )
+
+task.defer(function()
+    task.wait(0.05)
+    RemoveStellarUserInfo(Window)
+    task.wait(0.2)
+    RemoveStellarUserInfo(Window)
+end)
+
+local MovementSection =
+    PlayerTab:AddSection(
+        "Movement",
+        "move"
+    )
+
+MovementSection:AddToggle({
+    Name = "Speed Hack",
+    Flag = "SpeedHack",
+    Default = false,
+
+    Callback = function(Value)
+        State.SpeedHack = Value
+
+        if not Value then
+            local _, CurrentHumanoid =
+                GetCharacter()
+
+            if CurrentHumanoid then
+                CurrentHumanoid.WalkSpeed =
+                    SavedWalkSpeed
+            end
+        end
+    end
+})
+
+MovementSection:AddSlider(
+    "Walk Speed",
+    16,
+    250,
+    50,
+    function(Value)
+        State.WalkSpeed = Value
+    end
+)
+
+MovementSection:AddToggle({
+    Name = "Jump Hack",
+    Flag = "JumpHack",
+    Default = false,
+
+    Callback = function(Value)
+        State.JumpHack = Value
+
+        if not Value then
+            local _, CurrentHumanoid =
+                GetCharacter()
+
+            if CurrentHumanoid then
+                CurrentHumanoid.UseJumpPower =
+                    SavedUseJumpPower
+
+                CurrentHumanoid.JumpPower =
+                    SavedJumpPower
+            end
+        end
+    end
+})
+
+MovementSection:AddSlider(
+    "Jump Power",
+    50,
+    250,
+    100,
+    function(Value)
+        State.JumpPower = Value
+    end
+)
+
+MovementSection:AddToggle({
+    Name = "No Clip",
+    Flag = "NoClip",
+    Default = false,
+
+    Callback = function(Value)
+        State.NoClip = Value
+    end
+})
+
+MovementSection:AddToggle({
+    Name = "Fly",
+    Flag = "Fly",
+    Default = false,
+
+    Callback = function(Value)
+        State.Fly = Value
+
+        if Value then
+            StartFly()
+        else
+            StopFly()
+        end
+    end
+})
+
+MovementSection:AddSlider(
+    "Fly Speed",
+    10,
+    250,
+    60,
+    function(Value)
+        State.FlySpeed = Value
+    end
+)
+
+local AutoInvestSection =
+    PlayerTab:AddSection(
+        "Auto Invest",
+        "wallet-cards"
+    )
+
+AutoInvestSection:AddDropdown({
+    Name = "Investment Amount",
+    Flag = "InvestmentAmount",
+    Items = InvestmentAmountItems,
+
+    Default = (
+        #InvestmentAmountItems > 0
+        and InvestmentAmountItems[1]
+        or nil
+    ),
+
+    Multi = false,
+    MaxSize = 150,
+
+    Callback = function(Value)
+        if Value then
+            State.InvestmentTierId =
+                InvestmentAmountMap[Value]
+        end
+    end
+})
+
+AutoInvestSection:AddDropdown({
+    Name = "Profit Percent",
+    Flag = "InvestmentPercent",
+    Items = InvestmentPercentItems,
+
+    Default = (
+        #InvestmentPercentItems > 0
+        and InvestmentPercentItems[1]
+        or nil
+    ),
+
+    Multi = false,
+    MaxSize = 150,
+
+    Callback = function(Value)
+        if Value then
+            State.InvestmentDurationId =
+                InvestmentPercentMap[Value]
+        end
+    end
+})
+
+AutoInvestSection:AddToggle({
+    Name = "Auto Invest",
+    Flag = "AutoInvest",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoInvest = Value
+
+        if Value then
+            StartAutoInvest()
+        else
+            AutoInvestCycle += 1
+        end
+    end
+})
+
+
+local AutoFarmTab =
+    Window:AddTab(
+        "AutoFarm",
+        "bot"
+    )
+
+local AutoFarmSection1 =
+    AutoFarmTab:AddSection(
+        "Auto Trash Collect",
+        "trash-2"
+    )
+
+AutoFarmSection1:AddToggle({
+    Name = "Enable",
+    Flag = "AutoTrashCollect",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoTrashCollect = Value
+
+        if Value then
+            task.spawn(StartTrashCollect)
+        end
+    end
+})
+
+local AutoFarmSection2 =
+    AutoFarmTab:AddSection(
+        "Auto Box Handler",
+        "package"
+    )
+
+AutoFarmSection2:AddToggle({
+    Name = "Enable",
+    Flag = "AutoBoxHandler",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoBoxHandler = Value
+
+        if Value then
+            task.spawn(StartBoxHandler)
+        end
+    end
+})
+
+local AutoFarmSection3 =
+    AutoFarmTab:AddSection(
+        "Auto Delivery Food",
+        "truck"
+    )
+
+AutoFarmSection3:AddToggle({
+    Name = "Enable",
+    Flag = "AutoDeliveryFood",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoDeliveryFood = Value
+
+        if Value then
+            task.spawn(StartDeliveryFood)
+        end
+    end
+})
+
+local AutoFarmSection4 =
+    AutoFarmTab:AddSection(
+        "Auto Smuggler Contract",
+        "briefcase-business"
+    )
+
+AutoFarmSection4:AddToggle({
+    Name = "Enable",
+    Flag = "AutoSmugglerContract",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoSmugglerContract = Value
+
+        if Value then
+            task.spawn(StartSmugglerContract)
+        end
+    end
+})
+
+local AutoUpgradeTab =
+    Window:AddTab(
+        "Auto Upgrade",
+        "trending-up"
+    )
+
+local UpgradeSection1 =
+    AutoUpgradeTab:AddSection(
+        "Lemonade Stand",
+        "cup-soda"
+    )
+
+UpgradeSection1:AddToggle({
+    Name = "Auto Lemonade Stand Upgrade",
+    Flag = "AutoLemonadeStandUpgrade",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoLemonadeStandUpgrade = Value
+
+        if Value then
+            StartUpgradeLoop(
+                "AutoLemonadeStandUpgrade",
+                StartLemonadeStandUpgrade
+            )
+        end
+    end
+})
+
+local UpgradeSection2 =
+    AutoUpgradeTab:AddSection(
+        "Food Truck",
+        "truck"
+    )
+
+UpgradeSection2:AddToggle({
+    Name = "Auto Food Truck Upgrade",
+    Flag = "AutoFoodTruckUpgrade",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoFoodTruckUpgrade = Value
+
+        if Value then
+            StartUpgradeLoop(
+                "AutoFoodTruckUpgrade",
+                StartFoodTruckUpgrade
+            )
+        end
+    end
+})
+
+local UpgradeSection3 =
+    AutoUpgradeTab:AddSection(
+        "Garage Sale",
+        "warehouse"
+    )
+
+UpgradeSection3:AddToggle({
+    Name = "Auto Garage Sale Upgrade",
+    Flag = "AutoGarageSaleUpgrade",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoGarageSaleUpgrade = Value
+
+        if Value then
+            StartUpgradeLoop(
+                "AutoGarageSaleUpgrade",
+                StartGarageSaleUpgrade
+            )
+        end
+    end
+})
+
+local UpgradeSection4 =
+    AutoUpgradeTab:AddSection(
+        "Supermarket",
+        "shopping-cart"
+    )
+
+UpgradeSection4:AddToggle({
+    Name = "Auto Supermarket Upgrade",
+    Flag = "AutoSupermarketUpgrade",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoSupermarketUpgrade = Value
+
+        if Value then
+            StartUpgradeLoop(
+                "AutoSupermarketUpgrade",
+                StartSupermarketUpgrade
+            )
+        end
+    end
+})
+
+local UpgradeSection5 =
+    AutoUpgradeTab:AddSection(
+        "Gas Station",
+        "fuel"
+    )
+
+UpgradeSection5:AddToggle({
+    Name = "Auto Gas Station Upgrade",
+    Flag = "AutoGasStationUpgrade",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoGasStationUpgrade = Value
+
+        if Value then
+            StartUpgradeLoop(
+                "AutoGasStationUpgrade",
+                StartGasStationUpgrade
+            )
+        end
+    end
+})
+
+local UpgradeSection6 =
+    AutoUpgradeTab:AddSection(
+        "Tech Company",
+        "monitor-cog"
+    )
+
+UpgradeSection6:AddToggle({
+    Name = "Auto Tech Company Upgrade",
+    Flag = "AutoTechCompanyUpgrade",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoTechCompanyUpgrade = Value
+
+        if Value then
+            StartUpgradeLoop(
+                "AutoTechCompanyUpgrade",
+                StartTechCompanyUpgrade
+            )
+        end
+    end
+})
+
+local UpgradeSection7 =
+    AutoUpgradeTab:AddSection(
+        "Logistics",
+        "route"
+    )
+
+UpgradeSection7:AddToggle({
+    Name = "Auto Logistics Upgrade",
+    Flag = "AutoLogisticsUpgrade",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoLogisticsUpgrade = Value
+
+        if Value then
+            StartUpgradeLoop(
+                "AutoLogisticsUpgrade",
+                StartLogisticsUpgrade
+            )
+        end
+    end
+})
+
+local UpgradeSection8 =
+    AutoUpgradeTab:AddSection(
+        "Real Estate",
+        "building-2"
+    )
+
+UpgradeSection8:AddToggle({
+    Name = "Auto Real Estate Upgrade",
+    Flag = "AutoRealEstateUpgrade",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoRealEstateUpgrade = Value
+
+        if Value then
+            StartUpgradeLoop(
+                "AutoRealEstateUpgrade",
+                StartRealEstateUpgrade
+            )
+        end
+    end
+})
+
+local UpgradeSection9 =
+    AutoUpgradeTab:AddSection(
+        "Bank",
+        "landmark"
+    )
+
+UpgradeSection9:AddToggle({
+    Name = "Auto Bank Upgrade",
+    Flag = "AutoBankUpgrade",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoBankUpgrade = Value
+
+        if Value then
+            StartUpgradeLoop(
+                "AutoBankUpgrade",
+                StartBankUpgrade
+            )
+        end
+    end
+})
+
+local AutoCollectTab =
+    Window:AddTab(
+        "AutoCollect",
+        "hand-coins"
+    )
+
+local CollectSection1 =
+    AutoCollectTab:AddSection(
+        "Lemonade Stand",
+        "cup-soda"
+    )
+
+CollectSection1:AddToggle({
+    Name = "Auto Lemonade Cash Collect",
+    Flag = "AutoLemonadeCashCollect",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoLemonadeCashCollect = Value
+
+        if Value then
+            StartCashCollect(
+                "AutoLemonadeCashCollect",
+                "LemonadeStandEvents"
+            )
+        end
+    end
+})
+
+local CollectSection2 =
+    AutoCollectTab:AddSection(
+        "Food Truck",
+        "truck"
+    )
+
+CollectSection2:AddToggle({
+    Name = "Auto Food Truck Cash Collect",
+    Flag = "AutoFoodTruckCashCollect",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoFoodTruckCashCollect = Value
+
+        if Value then
+            StartCashCollect(
+                "AutoFoodTruckCashCollect",
+                "FoodTruckEvents"
+            )
+        end
+    end
+})
+
+local CollectSection3 =
+    AutoCollectTab:AddSection(
+        "Garage Sale",
+        "warehouse"
+    )
+
+CollectSection3:AddToggle({
+    Name = "Auto Garage Cash Collect",
+    Flag = "AutoGarageCashCollect",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoGarageCashCollect = Value
+
+        if Value then
+            StartCashCollect(
+                "AutoGarageCashCollect",
+                "GarageSaleEvents"
+            )
+        end
+    end
+})
+
+local CollectSection4 =
+    AutoCollectTab:AddSection(
+        "Logistics",
+        "route"
+    )
+
+CollectSection4:AddToggle({
+    Name = "Auto Logistics Cash Collect",
+    Flag = "AutoLogisticsCashCollect",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoLogisticsCashCollect = Value
+
+        if Value then
+            StartCashCollect(
+                "AutoLogisticsCashCollect",
+                "LogisticsEvents"
+            )
+        end
+    end
+})
+
+local CollectSection5 =
+    AutoCollectTab:AddSection(
+        "Real Estate",
+        "building-2"
+    )
+
+CollectSection5:AddToggle({
+    Name = "Auto Real Estate Cash Collect",
+    Flag = "AutoRealEstateCashCollect",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoRealEstateCashCollect = Value
+
+        if Value then
+            StartCashCollect(
+                "AutoRealEstateCashCollect",
+                "PropertyEvents"
+            )
+        end
+    end
+})
+
+local CollectSection6 =
+    AutoCollectTab:AddSection(
+        "Supermarket",
+        "shopping-cart"
+    )
+
+CollectSection6:AddToggle({
+    Name = "Auto Supermarket Cash Collect",
+    Flag = "AutoSupermarketCashCollect",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoSupermarketCashCollect = Value
+
+        if Value then
+            StartCashCollect(
+                "AutoSupermarketCashCollect",
+                "SupermarketEvents"
+            )
+        end
+    end
+})
+
+local CollectSection7 =
+    AutoCollectTab:AddSection(
+        "Gas Station",
+        "fuel"
+    )
+
+CollectSection7:AddToggle({
+    Name = "Auto Gas Station Cash Collect",
+    Flag = "AutoGasStationCashCollect",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoGasStationCashCollect = Value
+
+        if Value then
+            StartCashCollect(
+                "AutoGasStationCashCollect",
+                "GasStationEvents"
+            )
+        end
+    end
+})
+
+local CollectSection8 =
+    AutoCollectTab:AddSection(
+        "Tech Company",
+        "monitor-cog"
+    )
+
+CollectSection8:AddToggle({
+    Name = "Auto Tech Company Cash Collect",
+    Flag = "AutoTechCompanyCashCollect",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoTechCompanyCashCollect = Value
+
+        if Value then
+            StartCashCollect(
+                "AutoTechCompanyCashCollect",
+                "TechCompanyEvents"
+            )
+        end
+    end
+})
+
+local CollectSection9 =
+    AutoCollectTab:AddSection(
+        "Bank",
+        "landmark"
+    )
+
+CollectSection9:AddToggle({
+    Name = "Auto Bank Cash Collect",
+    Flag = "AutoBankCashCollect",
+    Default = false,
+
+    Callback = function(Value)
+        State.AutoBankCashCollect = Value
+
+        if Value then
+            StartCashCollect(
+                "AutoBankCashCollect",
+                "BankEvents"
+            )
+        end
+    end
+})
+
+task.defer(function()
+    task.wait(0.1)
+
+    local SettingsPage = Window.SettingsPage
+
+    if not SettingsPage then
+        return
+    end
+
+    local ScriptSection =
+        SettingsPage:AddSection(
+            "Script",
+            "power"
+        )
+
+    ScriptSection:AddButton({
+        Name = "Unload",
+
+        Callback = function()
+            pcall(function()
+                State.SpeedHack = false
+                State.JumpHack = false
+                State.NoClip = false
+                State.Fly = false
+
+                State.AutoInvest = false
+
+                State.AutoTrashCollect = false
+                State.AutoBoxHandler = false
+                State.AutoDeliveryFood = false
+                State.AutoSmugglerContract = false
+
+                State.AutoLemonadeStandUpgrade = false
+                State.AutoFoodTruckUpgrade = false
+                State.AutoGarageSaleUpgrade = false
+                State.AutoSupermarketUpgrade = false
+                State.AutoGasStationUpgrade = false
+                State.AutoTechCompanyUpgrade = false
+                State.AutoLogisticsUpgrade = false
+                State.AutoRealEstateUpgrade = false
+                State.AutoBankUpgrade = false
+
+                State.AutoLemonadeCashCollect = false
+                State.AutoFoodTruckCashCollect = false
+                State.AutoGarageCashCollect = false
+                State.AutoLogisticsCashCollect = false
+                State.AutoRealEstateCashCollect = false
+                State.AutoSupermarketCashCollect = false
+                State.AutoGasStationCashCollect = false
+                State.AutoTechCompanyCashCollect = false
+                State.AutoBankCashCollect = false
+
+                AutoInvestCycle += 1
+
+                StopFly()
+
+                local _, CurrentHumanoid =
+                    GetCharacter()
+
+                if CurrentHumanoid then
+                    CurrentHumanoid.WalkSpeed =
+                        SavedWalkSpeed
+
+                    CurrentHumanoid.JumpPower =
+                        SavedJumpPower
+
+                    CurrentHumanoid.UseJumpPower =
+                        SavedUseJumpPower
+                end
+            end)
+
+            pcall(function()
+                Library:Unload()
+            end)
+
+            getgenv().JulyScripts.Library = nil
+        end
+    })
+
+    task.wait(0.1)
+
+    RemoveStellarUserInfo(Window)
+end)
+
+task.delay(1, function()
+    RemoveStellarUserInfo(Window)
+end)
