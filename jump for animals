@@ -1,0 +1,2698 @@
+if getgenv().JulyEggScript then
+    pcall(function()
+        getgenv().JulyEggScript:Unload()
+    end)
+end
+local Library = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/vortex777-ai/ui-worldofS-st/refs/heads/main/Stellar.lua"
+))()
+getgenv().JulyEggScript = Library
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+local Character
+local Humanoid
+local RootPart
+local SpeedEnabled = false
+local JumpEnabled = false
+local NoClipEnabled = false
+local FlyEnabled = false
+local AntiRagdollEnabled = false
+local AutoMutationEnabled = false
+local AutoMutationStrengthFarmEnabled = false
+local AutoTrailEnabled = false
+local AutoHatchStrengthFarmEnabled = false
+local AutoStealStrengthFarmEnabled = false
+local AutoHatchEnabled = false
+local AutoStealEnabled = false
+local DebugEnabled = false
+local SpeedValue = 16
+local JumpValue = 50
+local FlySpeed = 50
+local SelectedRarities = {}
+local SelectedLocations = {}
+local CharacterConnection
+local SpeedConnection
+local JumpConnection
+local NoClipConnection
+local FlyConnection
+local AntiRagdollConnection
+local AutoTrailThread
+local AutoMutationThread
+local AutoHatchThread
+local AutoStealThread
+local Unloaded = false
+local UnloadAdded = false
+local ActionBusy = false
+local ActionOwner = nil
+local StrengthFarmActive = false
+local StrengthFarmRequests = {}
+local AutoMutationQueue = {}
+local AutoMutationQueueKey = nil
+local AutoMutationQueueIndex = 1
+local AutoStealWaitingForSlot = false
+local AutoStealWaitingPlacedEggs = {}
+local AutoStealWaitingPlacedEggCount = 0
+local AutoHatchSquatting = false
+local AutoStealSquatting = false
+local AutoMutationSquatting = false
+local HATCH_DISTANCE = 14.995
+local STEAL_DISTANCE = 10
+local HATCH_TIMEOUT = 3
+local STEAL_TIMEOUT = 3
+local TOOL_TIMEOUT = 8
+local PLACE_TIMEOUT = 5
+local PLACEMENT_SEARCH_STEP = 3
+local PLACEMENT_EDGE_MARGIN = 7
+local PlaceEggRequest = ReplicatedStorage
+    :WaitForChild("Remotes")
+    :WaitForChild("PlaceEggRequest")
+local StopSquattingRequest = ReplicatedStorage
+    :WaitForChild("Remotes")
+    :WaitForChild("StopSquattingRequest")
+local TrailsRequest = ReplicatedStorage
+    :WaitForChild("Remotes")
+    :WaitForChild("Trails")
+local TrailList = {
+    {Name = "Blue Trail", Order = 1, Cost = 100},
+    {Name = "Red Trail", Order = 2, Cost = 50000},
+    {Name = "Green Trail", Order = 3, Cost = 750000},
+    {Name = "Yellow Trail", Order = 4, Cost = 10000000},
+    {Name = "Purple Trail", Order = 5, Cost = 150000000},
+    {Name = "White Trail", Order = 6, Cost = 2500000000},
+    {Name = "Black Trail", Order = 7, Cost = 40000000000},
+    {Name = "Galaxy Trail", Order = 8, Cost = 750000000000},
+    {Name = "Crimson Star Trail", Order = 9, Cost = 12500000000000},
+    {Name = "Rainbow Trail", Order = 10, Cost = 300000000000000}
+}
+local function DebugPrint(...)
+    if DebugEnabled then
+        print("[JulyScripts][AutoEgg]", ...)
+    end
+end
+local function UpdateCharacter()
+    Character = LocalPlayer.Character
+    if not Character then
+        Humanoid = nil
+        RootPart = nil
+        return
+    end
+    Humanoid = Character:FindFirstChildOfClass("Humanoid")
+    RootPart = Character:FindFirstChild("HumanoidRootPart")
+end
+local function ApplySpeed()
+    if not Humanoid or not Humanoid.Parent then
+        return
+    end
+    Humanoid.WalkSpeed = SpeedEnabled and SpeedValue or 16
+end
+local function ApplyJump()
+    if not Humanoid or not Humanoid.Parent then
+        return
+    end
+    Humanoid.UseJumpPower = true
+    Humanoid.JumpPower = JumpEnabled and JumpValue or 50
+end
+local function StartNoClip()
+    if NoClipConnection then
+        NoClipConnection:Disconnect()
+        NoClipConnection = nil
+    end
+    NoClipConnection = RunService.Stepped:Connect(function()
+        if Unloaded or not NoClipEnabled then
+            return
+        end
+        if not Character or not Character.Parent then
+            return
+        end
+        for _, Object in ipairs(Character:GetDescendants()) do
+            if Object:IsA("BasePart") then
+                Object.CanCollide = false
+            end
+        end
+    end)
+end
+local function StopNoClip()
+    if NoClipConnection then
+        NoClipConnection:Disconnect()
+        NoClipConnection = nil
+    end
+    if not Character or not Character.Parent then
+        return
+    end
+    for _, Object in ipairs(Character:GetDescendants()) do
+        if Object:IsA("BasePart") then
+            Object.CanCollide = true
+        end
+    end
+end
+local function StartFly()
+    if FlyConnection then
+        FlyConnection:Disconnect()
+        FlyConnection = nil
+    end
+    FlyConnection = RunService.RenderStepped:Connect(function()
+        if Unloaded or not FlyEnabled then
+            return
+        end
+        if not Character or not Character.Parent then
+            return
+        end
+        if not RootPart or not RootPart.Parent then
+            return
+        end
+        local Camera = Workspace.CurrentCamera
+        if not Camera then
+            return
+        end
+        local MoveDirection = Vector3.zero
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            MoveDirection += Camera.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            MoveDirection -= Camera.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            MoveDirection -= Camera.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            MoveDirection += Camera.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            MoveDirection += Vector3.yAxis
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            MoveDirection -= Vector3.yAxis
+        end
+        if MoveDirection.Magnitude > 0 then
+            MoveDirection = MoveDirection.Unit * FlySpeed
+        end
+        RootPart.AssemblyLinearVelocity = MoveDirection
+    end)
+end
+local function StopFly()
+    if FlyConnection then
+        FlyConnection:Disconnect()
+        FlyConnection = nil
+    end
+    if RootPart and RootPart.Parent then
+        RootPart.AssemblyLinearVelocity = Vector3.zero
+    end
+end
+local function StopAntiRagdoll()
+    if AntiRagdollConnection then
+        AntiRagdollConnection:Disconnect()
+        AntiRagdollConnection = nil
+    end
+    if Humanoid and Humanoid.Parent then
+        pcall(function()
+            Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+            Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+            Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
+        end)
+    end
+end
+local function StartAntiRagdoll()
+    StopAntiRagdoll()
+    if not Humanoid or not Humanoid.Parent then
+        return
+    end
+    pcall(function()
+        Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+    end)
+    AntiRagdollConnection = RunService.Heartbeat:Connect(function()
+        if Unloaded or not AntiRagdollEnabled then
+            return
+        end
+        if not Humanoid or not Humanoid.Parent then
+            return
+        end
+        local State = Humanoid:GetState()
+        if State == Enum.HumanoidStateType.Ragdoll
+            or State == Enum.HumanoidStateType.FallingDown
+            or State == Enum.HumanoidStateType.Physics then
+            pcall(function()
+                Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+            end)
+        end
+    end)
+end
+local function GetCash()
+    local Leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+    if not Leaderstats then
+        return nil
+    end
+    local Cash = Leaderstats:FindFirstChild("Cash")
+    if not Cash then
+        return nil
+    end
+    return tonumber(Cash.Value)
+end
+local function GetBestAffordableTrail()
+    local Cash = GetCash()
+    if not Cash then
+        DebugPrint("AutoTrail: Cash not found")
+        return nil
+    end
+    local BestTrail
+    for _, Trail in ipairs(TrailList) do
+        if Cash >= Trail.Cost
+            and (not BestTrail or Trail.Order > BestTrail.Order) then
+            BestTrail = Trail
+        end
+    end
+    return BestTrail
+end
+local function ProcessAutoTrail()
+    local BestTrail = GetBestAffordableTrail()
+    if not BestTrail then
+        return false
+    end
+    local Success, Error = pcall(function()
+        TrailsRequest:FireServer("Select", BestTrail.Name)
+    end)
+    DebugPrint(
+        "AutoTrail:",
+        BestTrail.Name,
+        "Cash:",
+        tostring(GetCash()),
+        "Success:",
+        tostring(Success),
+        tostring(Error)
+    )
+    return Success
+end
+local function StartAutoTrail()
+    if AutoTrailThread then
+        return
+    end
+    AutoTrailThread = task.spawn(function()
+        local LastTrail
+        while not Unloaded do
+            if AutoTrailEnabled then
+                local BestTrail = GetBestAffordableTrail()
+                if BestTrail and BestTrail.Name ~= LastTrail then
+                    if ProcessAutoTrail() then
+                        LastTrail = BestTrail.Name
+                    end
+                end
+            else
+                LastTrail = nil
+            end
+            task.wait(0.5)
+        end
+    end)
+end
+local function AcquireAction(Owner)
+    if Unloaded or ActionBusy then
+        return false
+    end
+    ActionBusy = true
+    ActionOwner = Owner or "Unknown"
+    DebugPrint("Action acquired:", ActionOwner)
+    return true
+end
+local function ReleaseAction()
+    DebugPrint("Action released:", ActionOwner or "Unknown")
+    ActionBusy = false
+    ActionOwner = nil
+end
+local function FindOwnPlot()
+    local Map = Workspace:FindFirstChild("Map")
+    if not Map then
+        DebugPrint("Map not found")
+        return nil
+    end
+    local Plots = Map:FindFirstChild("Plots")
+    if not Plots then
+        DebugPrint("Plots not found")
+        return nil
+    end
+    for _, Plot in ipairs(Plots:GetChildren()) do
+        local OwnerAttribute = Plot:GetAttribute("OwnerUserId")
+        if OwnerAttribute ~= nil then
+            if tonumber(OwnerAttribute) == LocalPlayer.UserId then
+                DebugPrint(
+                    "Own plot found by attribute:",
+                    Plot:GetFullName()
+                )
+                return Plot
+            end
+        end
+        local OwnerObject = Plot:FindFirstChild("OwnerUserId")
+        if OwnerObject then
+            local OwnerValue
+            pcall(function()
+                OwnerValue = OwnerObject.Value
+            end)
+            if tonumber(OwnerValue) == LocalPlayer.UserId then
+                DebugPrint(
+                    "Own plot found by value:",
+                    Plot:GetFullName()
+                )
+                return Plot
+            end
+        end
+    end
+    DebugPrint("Own plot not found")
+    return nil
+end
+local function GetPlacedEggs(Plot)
+    Plot = Plot or FindOwnPlot()
+    if not Plot then
+        return nil
+    end
+    local PlacedEggs = Plot:FindFirstChild("PlacedEggs")
+    if not PlacedEggs then
+        PlacedEggs = Plot:FindFirstChild("placedEggs")
+    end
+    if not PlacedEggs then
+        PlacedEggs = Plot:FindFirstChild("PlacedEggs", true)
+    end
+    if not PlacedEggs then
+        PlacedEggs = Plot:FindFirstChild("placedEggs", true)
+    end
+    return PlacedEggs
+end
+local function GetSquatDetection(Plot)
+    if not Plot then
+        return nil
+    end
+    local SquatZone = Plot:FindFirstChild("SquatZone", true)
+    local Floor = SquatZone and SquatZone:FindFirstChild("Floor", true) or nil
+    local function FindDetection(Container)
+        if not Container then
+            return nil
+        end
+        local Detection = Container:FindFirstChild("Detector")
+        if Detection then
+            return Detection
+        end
+        Detection = Container:FindFirstChild("detector")
+        if Detection then
+            return Detection
+        end
+        for _, Object in ipairs(Container:GetDescendants()) do
+            local Name = string.lower(Object.Name)
+            if Name == "detection" or string.find(Name, "detection", 1, true) then
+                return Object
+            end
+        end
+        return nil
+    end
+    local Detection = FindDetection(Floor)
+    if Detection then
+        return Detection
+    end
+    Detection = FindDetection(SquatZone)
+    if Detection then
+        return Detection
+    end
+    Detection = FindDetection(Plot)
+    if Detection then
+        return Detection
+    end
+    DebugPrint("Strength Farm Detector instance not found:", Plot:GetFullName())
+    return nil
+end
+local function GetDetectionPosition(Detection)
+    if not Detection then
+        return nil
+    end
+    local Success, DetectionCFrame = pcall(function()
+        return Detection.CFrame
+    end)
+    if Success and typeof(DetectionCFrame) == "CFrame" then
+        return DetectionCFrame.Position
+    end
+    if Detection:IsA("Attachment") then
+        return Detection.WorldPosition
+    end
+    if Detection:IsA("BasePart") then
+        return Detection.Position
+    end
+    if Detection:IsA("Model") then
+        return Detection:GetPivot().Position
+    end
+    local Part = Detection:FindFirstChildWhichIsA("BasePart", true)
+    if Part then
+        return Part.Position
+    end
+    return nil
+end
+local function StopSquatting()
+    local Success, Error = pcall(function()
+        StopSquattingRequest:FireServer()
+    end)
+    DebugPrint(
+        "StopSquattingRequest:",
+        tostring(Success),
+        tostring(Error)
+    )
+    return Success
+end
+local function MoveToPosition(Position, OffsetY)
+    UpdateCharacter()
+    if not RootPart or not RootPart.Parent then
+        return false
+    end
+    OffsetY = OffsetY or 2.5
+    local TargetPosition =
+        Position + Vector3.new(
+            0,
+            OffsetY,
+            0
+        )
+    local Success, Error =
+        pcall(function()
+            RootPart.CFrame =
+                CFrame.new(
+                    TargetPosition
+                )
+        end)
+    if not Success then
+        DebugPrint(
+            "Teleport error:",
+            tostring(Error)
+        )
+        return false
+    end
+    task.wait(0.2)
+    return true
+end
+local function SetSquatFlag(Mode, Value)
+    if Mode == "Hatch" then
+        AutoHatchSquatting = Value
+    elseif Mode == "Steal" then
+        AutoStealSquatting = Value
+    elseif Mode == "Mutation" then
+        AutoMutationSquatting = Value
+    end
+end
+local function SetAllSquatFlags(Value)
+    for Mode in pairs(StrengthFarmRequests) do
+        SetSquatFlag(Mode, Value)
+    end
+end
+local function GetAnyStrengthFarmMode()
+    if StrengthFarmRequests.Hatch then
+        return "Hatch"
+    end
+    if StrengthFarmRequests.Steal then
+        return "Steal"
+    end
+    if StrengthFarmRequests.Mutation then
+        return "Mutation"
+    end
+    return nil
+end
+local function StartStrengthFarm(Mode)
+    if Mode ~= "Hatch" and Mode ~= "Steal" and Mode ~= "Mutation" then
+        return false
+    end
+    StrengthFarmRequests[Mode] = true
+    SetSquatFlag(Mode, true)
+    local Plot = FindOwnPlot()
+    if not Plot then
+        return false
+    end
+    local Detection = GetSquatDetection(Plot)
+    if not Detection then
+        DebugPrint("Strength Farm Detector instance not found:", Plot:GetFullName())
+        return false
+    end
+    local Position = GetDetectionPosition(Detection)
+    if not Position then
+        DebugPrint("Strength Farm position not found:", Detection:GetFullName())
+        return false
+    end
+    UpdateCharacter()
+    if not RootPart or not RootPart.Parent then
+        return false
+    end
+    local TargetPosition = Position + Vector3.new(0, 3, 0)
+    local Distance = (RootPart.Position - TargetPosition).Magnitude
+    if not StrengthFarmActive or Distance > 8 then
+        if not MoveToPosition(Position, 3) then
+            return false
+        end
+    end
+    local WasActive = StrengthFarmActive
+    StrengthFarmActive = true
+    SetSquatFlag(Mode, true)
+    if not WasActive then
+        DebugPrint("Strength Farm started:", Mode, Detection:GetFullName())
+    end
+    return true
+end
+local function SuspendStrengthFarm()
+    if not StrengthFarmActive then
+        return false
+    end
+    StopSquatting()
+    StrengthFarmActive = false
+    SetAllSquatFlags(false)
+    task.wait(0.15)
+    return true
+end
+local function ResumeStrengthFarm()
+    if Unloaded or StrengthFarmActive then
+        return StrengthFarmActive
+    end
+    local Mode = GetAnyStrengthFarmMode()
+    if not Mode then
+        return false
+    end
+    return StartStrengthFarm(Mode)
+end
+local function PrepareForAction(Mode)
+    StrengthFarmRequests[Mode] = nil
+    SetSquatFlag(Mode, false)
+    if StrengthFarmActive then
+        SuspendStrengthFarm()
+    end
+end
+local function StopStrengthFarm(Mode, Force)
+    if Mode ~= "Hatch" and Mode ~= "Steal" and Mode ~= "Mutation" then
+        return false
+    end
+    StrengthFarmRequests[Mode] = nil
+    SetSquatFlag(Mode, false)
+    if not Force and GetAnyStrengthFarmMode() then
+        return true
+    end
+    if StrengthFarmActive then
+        StopSquatting()
+        StrengthFarmActive = false
+        SetAllSquatFlags(false)
+        task.wait(0.15)
+    end
+    return true
+end
+local function GetHatchReady(Egg)
+    if not Egg then
+        return false
+    end
+    local Value = Egg:GetAttribute("HatchReady")
+    if Value ~= nil then
+        if typeof(Value) == "boolean" then
+            return Value
+        end
+        if typeof(Value) == "string" then
+            return Value:lower() == "true"
+        end
+        local NumberValue = tonumber(Value)
+        if NumberValue ~= nil then
+            return NumberValue ~= 0
+        end
+    end
+    local Object = Egg:FindFirstChild("HatchReady", true)
+    if Object and Object:IsA("BoolValue") then
+        return Object.Value
+    end
+    return false
+end
+local function GetEggRoot(Egg)
+    if not Egg then
+        return nil
+    end
+    local Root = Egg:FindFirstChild("EggRoot")
+    if Root then
+        return Root
+    end
+    for _, Object in ipairs(Egg:GetDescendants()) do
+        if Object.Name == "EggRoot" then
+            return Object
+        end
+    end
+    return nil
+end
+local function GetEggPromptAttachment(Egg)
+    local EggRoot = GetEggRoot(Egg)
+    if not EggRoot then
+        return nil
+    end
+    local Attachment = EggRoot:FindFirstChild(
+        "EggPromptAttachment"
+    )
+    if Attachment and Attachment:IsA("Attachment") then
+        return Attachment
+    end
+    for _, Object in ipairs(EggRoot:GetDescendants()) do
+        if Object.Name == "EggPromptAttachment"
+            and Object:IsA("Attachment") then
+            return Object
+        end
+    end
+    return nil
+end
+local function GetPrompt(Egg, PromptName)
+    local Attachment = GetEggPromptAttachment(Egg)
+    if not Attachment then
+        return nil
+    end
+    local Prompt = Attachment:FindFirstChild(
+        PromptName
+    )
+    if Prompt and Prompt:IsA("ProximityPrompt") then
+        return Prompt
+    end
+    for _, Object in ipairs(Attachment:GetDescendants()) do
+        if Object.Name == PromptName
+            and Object:IsA("ProximityPrompt") then
+            return Object
+        end
+    end
+    return nil
+end
+local function GetHatchPrompt(Egg)
+    return GetPrompt(
+        Egg,
+        "HatchPrompt"
+    )
+end
+local function GetCollectPrompt(Egg)
+    return GetPrompt(
+        Egg,
+        "CollectPrompt"
+    )
+end
+local function GetEggPosition(Egg)
+    if not Egg or not Egg.Parent then
+        return nil
+    end
+    local Attachment = GetEggPromptAttachment(Egg)
+    if Attachment then
+        local Position
+        if pcall(function()
+            Position = Attachment.WorldPosition
+        end) then
+            return Position
+        end
+    end
+    local Root = GetEggRoot(Egg)
+    if Root then
+        if Root:IsA("BasePart") then
+            return Root.Position
+        end
+        if Root:IsA("Model") then
+            return Root:GetPivot().Position
+        end
+    end
+    if Egg:IsA("BasePart") then
+        return Egg.Position
+    end
+    if Egg:IsA("Model") then
+        return Egg:GetPivot().Position
+    end
+    return nil
+end
+local function MoveToAttachment(
+    Attachment,
+    MaxDistance
+)
+    if not Attachment
+        or not Attachment.Parent then
+        return false
+    end
+    local TargetPosition
+    local Success =
+        pcall(function()
+            TargetPosition =
+                Attachment.WorldPosition
+        end)
+    if not Success
+        or not TargetPosition then
+        return false
+    end
+    if not MoveToPosition(
+        TargetPosition,
+        2.5
+    ) then
+        return false
+    end
+    if not RootPart then
+        return false
+    end
+    local Distance =
+        (
+            RootPart.Position
+            - TargetPosition
+        ).Magnitude
+    DebugPrint(
+        "Moved to attachment. Distance:",
+        tostring(Distance),
+        "Allowed:",
+        tostring(MaxDistance)
+    )
+    return Distance <= MaxDistance
+end
+local function ActivatePrompt(Prompt)
+    if not Prompt
+        or not Prompt.Parent then
+        return false
+    end
+    if not Prompt:IsA("ProximityPrompt") then
+        return false
+    end
+    if not Prompt.Enabled then
+        return false
+    end
+    local HoldDuration =
+        tonumber(
+            Prompt.HoldDuration
+        ) or 0.5
+    DebugPrint(
+        "Activating:",
+        Prompt:GetFullName(),
+        "HoldDuration:",
+        tostring(HoldDuration)
+    )
+    if fireproximityprompt then
+        local Success =
+            pcall(function()
+                fireproximityprompt(
+                    Prompt
+                )
+            end)
+        if Success then
+            DebugPrint(
+                "fireproximityprompt succeeded"
+            )
+            return true
+        end
+    end
+    local Success =
+        pcall(function()
+            Prompt:InputHoldBegin()
+            task.wait(
+                HoldDuration + 0.1
+            )
+            Prompt:InputHoldEnd()
+        end)
+    return Success
+end
+local function RestoreCFrame(
+    SavedCFrame
+)
+    if not SavedCFrame then
+        return
+    end
+    UpdateCharacter()
+    if not RootPart
+        or not RootPart.Parent then
+        return
+    end
+    pcall(function()
+        RootPart.CFrame =
+            SavedCFrame
+    end)
+    task.wait(0.15)
+end
+local function HatchEgg(Egg)
+    if not Egg
+        or not Egg.Parent then
+        return false
+    end
+    if not GetHatchReady(Egg) then
+        return false
+    end
+    local Attachment =
+        GetEggPromptAttachment(
+            Egg
+        )
+    local Prompt =
+        GetHatchPrompt(
+            Egg
+        )
+    if not Attachment
+        or not Prompt then
+        return false
+    end
+    UpdateCharacter()
+    if not RootPart then
+        return false
+    end
+    local SavedCFrame =
+        RootPart.CFrame
+    DebugPrint(
+        "Hatching:",
+        Egg.Name
+    )
+    if not MoveToAttachment(
+        Attachment,
+        HATCH_DISTANCE
+    ) then
+        RestoreCFrame(
+            SavedCFrame
+        )
+        return false
+    end
+    task.wait(0.2)
+    Prompt =
+        GetHatchPrompt(
+            Egg
+        )
+    if not Prompt
+        or not Prompt.Enabled then
+        RestoreCFrame(
+            SavedCFrame
+        )
+        return false
+    end
+    ActivatePrompt(
+        Prompt
+    )
+    local Start =
+        tick()
+    while not Unloaded
+        and AutoHatchEnabled do
+        if not Egg.Parent then
+            DebugPrint(
+                "Hatch success:",
+                Egg.Name
+            )
+            RestoreCFrame(
+                SavedCFrame
+            )
+            return true
+        end
+        if tick() - Start
+            >= HATCH_TIMEOUT then
+            break
+        end
+        task.wait(0.05)
+    end
+    RestoreCFrame(
+        SavedCFrame
+    )
+    return not Egg.Parent
+end
+local function FindReadyHatchEgg()
+    local PlacedEggs = GetPlacedEggs()
+    if not PlacedEggs then
+        return nil
+    end
+    for _, Egg in ipairs(PlacedEggs:GetChildren()) do
+        if GetHatchReady(Egg) then
+            local Prompt = GetHatchPrompt(Egg)
+            local Attachment = GetEggPromptAttachment(Egg)
+            if Prompt and Attachment and Prompt.Enabled then
+                return Egg
+            end
+        end
+    end
+    return nil
+end
+local function ProcessAutoHatch()
+    local Egg = FindReadyHatchEgg()
+    if Egg then
+        PrepareForAction("Hatch")
+        task.wait(0.15)
+        HatchEgg(Egg)
+        ResumeStrengthFarm()
+        return
+    end
+    if AutoHatchStrengthFarmEnabled then
+        StartStrengthFarm("Hatch")
+    else
+        StopStrengthFarm("Hatch")
+    end
+end
+local function GetStages()
+    local Map =
+        Workspace:FindFirstChild(
+            "Map"
+        )
+    if not Map then
+        DebugPrint(
+            "Map not found"
+        )
+        return nil
+    end
+    return Map:FindFirstChild(
+        "Stages"
+    )
+end
+local function GetSpawnedEggs(Stage)
+    if not Stage then
+        return nil
+    end
+    return Stage:FindFirstChild(
+        "SpawnedEggs"
+    )
+        or Stage:FindFirstChild(
+            "spawnedEggs"
+        )
+end
+local function BuildRarityList()
+    local Result = {}
+    local Assets =
+        ReplicatedStorage:FindFirstChild(
+            "Assets"
+        )
+    if not Assets then
+        return Result
+    end
+    local Rarities =
+        Assets:FindFirstChild(
+            "Rarities"
+        )
+    if not Rarities then
+        return Result
+    end
+    for _, Object in ipairs(
+        Rarities:GetChildren()
+    ) do
+        table.insert(
+            Result,
+            Object.Name
+        )
+    end
+    table.sort(Result)
+    return Result
+end
+local function BuildLocationList()
+    local Result = {}
+    local Stages =
+        GetStages()
+    if not Stages then
+        return Result
+    end
+    for _, Stage in ipairs(
+        Stages:GetChildren()
+    ) do
+        if GetSpawnedEggs(
+            Stage
+        ) then
+            table.insert(
+                Result,
+                Stage.Name
+            )
+        end
+    end
+    table.sort(Result)
+    return Result
+end
+local function FillList(
+    Source,
+    Destination
+)
+    table.clear(
+        Destination
+    )
+    for _, Value in ipairs(
+        Source
+    ) do
+        table.insert(
+            Destination,
+            Value
+        )
+    end
+end
+local RarityOptions =
+    BuildRarityList()
+local LocationOptions =
+    BuildLocationList()
+FillList(
+    RarityOptions,
+    SelectedRarities
+)
+FillList(
+    LocationOptions,
+    SelectedLocations
+)
+local function IsSelected(
+    List,
+    Value
+)
+    return table.find(
+        List,
+        Value
+    ) ~= nil
+end
+local function FindBestStealEgg()
+    local Stages =
+        GetStages()
+    if not Stages then
+        return nil
+    end
+    UpdateCharacter()
+    if not RootPart then
+        return nil
+    end
+    local BestEgg
+    local BestDistance =
+        math.huge
+    local BestStage
+    for _, Stage in ipairs(
+        Stages:GetChildren()
+    ) do
+        if not IsSelected(
+            SelectedLocations,
+            Stage.Name
+        ) then
+            continue
+        end
+        local SpawnedEggs =
+            GetSpawnedEggs(
+                Stage
+            )
+        if not SpawnedEggs then
+            continue
+        end
+        for _, Egg in ipairs(
+            SpawnedEggs:GetChildren()
+        ) do
+            if not Egg.Parent then
+                continue
+            end
+            local Rarity =
+                Egg:GetAttribute(
+                    "Rarity"
+                )
+            if not Rarity then
+                continue
+            end
+            if not IsSelected(
+                SelectedRarities,
+                Rarity
+            ) then
+                continue
+            end
+            local Prompt =
+                GetCollectPrompt(
+                    Egg
+                )
+            if not Prompt
+                or not Prompt.Enabled then
+                continue
+            end
+            local Position =
+                GetEggPosition(
+                    Egg
+                )
+            if not Position then
+                continue
+            end
+            local Distance =
+                (
+                    RootPart.Position
+                    - Position
+                ).Magnitude
+            if Distance < BestDistance then
+                BestDistance =
+                    Distance
+                BestEgg =
+                    Egg
+                BestStage =
+                    Stage
+            end
+        end
+    end
+    if BestEgg then
+        DebugPrint(
+            "Best steal egg:",
+            BestEgg.Name,
+            "Stage:",
+            BestStage
+                and BestStage.Name
+                or "?",
+            "Rarity:",
+            tostring(
+                BestEgg:GetAttribute(
+                    "Rarity"
+                )
+            ),
+            "Distance:",
+            tostring(
+                BestDistance
+            )
+        )
+    else
+        DebugPrint(
+            "No matching steal egg found"
+        )
+    end
+    return BestEgg
+end
+local function GetCarriedEggCount()
+    return tonumber(
+        LocalPlayer:GetAttribute(
+            "CarriedEggCount"
+        )
+    ) or 0
+end
+local function FindCarriedEggTool()
+    UpdateCharacter()
+    if Character then
+        for _, Object in ipairs(
+            Character:GetChildren()
+        ) do
+            if Object:IsA("Tool")
+                and Object:GetAttribute(
+                    "IsEggTool"
+                ) == true then
+                return Object
+            end
+        end
+    end
+    local Backpack =
+        LocalPlayer:FindFirstChildOfClass(
+            "Backpack"
+        )
+    if Backpack then
+        for _, Object in ipairs(
+            Backpack:GetChildren()
+        ) do
+            if Object:IsA("Tool")
+                and Object:GetAttribute(
+                    "IsEggTool"
+                ) == true then
+                return Object
+            end
+        end
+    end
+    return nil
+end
+local function WaitForCarriedEggTool(
+    Timeout
+)
+    local Start =
+        tick()
+    while not Unloaded
+        and AutoStealEnabled do
+        local Tool =
+            FindCarriedEggTool()
+        if Tool then
+            DebugPrint(
+                "Egg Tool found:",
+                Tool:GetFullName()
+            )
+            return Tool
+        end
+        if tick() - Start
+            >= (
+                Timeout
+                or TOOL_TIMEOUT
+            ) then
+            break
+        end
+        task.wait(0.1)
+    end
+    DebugPrint(
+        "Egg Tool timeout"
+    )
+    return nil
+end
+local function EquipEggTool(
+    Tool
+)
+    if not Tool then
+        return false
+    end
+    UpdateCharacter()
+    if not Humanoid then
+        return false
+    end
+    local Success =
+        pcall(function()
+            Humanoid:EquipTool(
+                Tool
+            )
+        end)
+    task.wait(0.25)
+    DebugPrint(
+        "EquipTool:",
+        tostring(
+            Success
+        ),
+        "Parent:",
+        Tool.Parent
+            and Tool.Parent:GetFullName()
+            or "nil"
+    )
+    return Success
+end
+local function GetPlacementZone(
+    Plot
+)
+    if not Plot then
+        return nil
+    end
+    local DefaultSize =
+        Plot:FindFirstChild(
+            "DefaultSize"
+        )
+    if not DefaultSize
+        or not DefaultSize:IsA(
+            "BasePart"
+        ) then
+        DebugPrint(
+            "DefaultSize not found"
+        )
+        return nil
+    end
+    return DefaultSize
+end
+local function IsInsidePlacementZone(
+    Zone,
+    Position
+)
+    if not Zone then
+        return false
+    end
+    local LocalPosition =
+        Zone.CFrame:PointToObjectSpace(
+            Position
+        )
+    local HalfX =
+        Zone.Size.X / 2
+        - PLACEMENT_EDGE_MARGIN
+    local HalfZ =
+        Zone.Size.Z / 2
+        - PLACEMENT_EDGE_MARGIN
+    if HalfX <= 0
+        or HalfZ <= 0 then
+        return false
+    end
+    return math.abs(
+        LocalPosition.X
+    ) <= HalfX
+        and math.abs(
+            LocalPosition.Z
+        ) <= HalfZ
+end
+local function GetExistingEggPositions(
+    PlacedEggs
+)
+    local Positions = {}
+    if not PlacedEggs then
+        return Positions
+    end
+    for _, Egg in ipairs(
+        PlacedEggs:GetChildren()
+    ) do
+        local Position =
+            GetEggPosition(
+                Egg
+            )
+        if Position then
+            table.insert(
+                Positions,
+                Position
+            )
+        end
+    end
+    return Positions
+end
+local function FindFreePlacementPosition(
+    Plot,
+    PlacedEggs
+)
+    UpdateCharacter()
+    if not RootPart then
+        return nil
+    end
+    local Zone =
+        GetPlacementZone(
+            Plot
+        )
+    if not Zone then
+        return nil
+    end
+    local Origin =
+        RootPart.Position
+    local PlacementY =
+        Zone.Position.Y
+        - Zone.Size.Y / 2
+        + 0.05
+    local HalfX =
+        Zone.Size.X / 2
+        - PLACEMENT_EDGE_MARGIN
+    local HalfZ =
+        Zone.Size.Z / 2
+        - PLACEMENT_EDGE_MARGIN
+    local Candidates = {}
+    for X = -HalfX,
+        HalfX,
+        PLACEMENT_SEARCH_STEP do
+        for Z = -HalfZ,
+            HalfZ,
+            PLACEMENT_SEARCH_STEP do
+            local Candidate =
+                Zone.CFrame:PointToWorldSpace(
+                    Vector3.new(
+                        X,
+                        -Zone.Size.Y / 2
+                            + 0.05,
+                        Z
+                    )
+                )
+            Candidate =
+                Vector3.new(
+                    Candidate.X,
+                    PlacementY,
+                    Candidate.Z
+                )
+            if IsInsidePlacementZone(
+                Zone,
+                Candidate
+            ) then
+                local Distance =
+                    (
+                        Vector2.new(
+                            Candidate.X,
+                            Candidate.Z
+                        )
+                        - Vector2.new(
+                            Origin.X,
+                            Origin.Z
+                        )
+                    ).Magnitude
+                table.insert(
+                    Candidates,
+                    {
+                        Position = Candidate,
+                        Distance = Distance
+                    }
+                )
+            end
+        end
+    end
+    table.sort(
+        Candidates,
+        function(A, B)
+            return A.Distance
+                < B.Distance
+        end
+    )
+    local Candidate =
+        Candidates[1]
+    if not Candidate then
+        DebugPrint(
+            "No placement candidate found"
+        )
+        return nil
+    end
+    DebugPrint(
+        "Free placement position:",
+        tostring(
+            Candidate.Position
+        ),
+        "Player distance:",
+        tostring(
+            Candidate.Distance
+        )
+    )
+    return Candidate.Position
+end
+local function MoveToPlacementPosition(
+    Position
+)
+    UpdateCharacter()
+    if not RootPart
+        or not RootPart.Parent then
+        return false
+    end
+    local TargetPosition =
+        Position
+        + Vector3.new(
+            0,
+            2.5,
+            0
+        )
+    local Success =
+        pcall(function()
+            RootPart.CFrame =
+                CFrame.new(
+                    TargetPosition
+                )
+        end)
+    if not Success then
+        return false
+    end
+    task.wait(0.3)
+    local Distance =
+        (
+            RootPart.Position
+            - Position
+        ).Magnitude
+    DebugPrint(
+        "Placement distance:",
+        tostring(
+            Distance
+        )
+    )
+    return Distance <= 15
+end
+local function WaitForPlacement(
+    PlacedEggs,
+    PreviousCount
+)
+    local Start =
+        tick()
+    while not Unloaded
+        and AutoStealEnabled do
+        if #PlacedEggs:GetChildren()
+            > PreviousCount then
+            DebugPrint(
+                "New egg appeared in PlacedEggs"
+            )
+            return true
+        end
+        local Tool =
+            FindCarriedEggTool()
+        if not Tool
+            and GetCarriedEggCount()
+                == 0 then
+            return true
+        end
+        if tick() - Start
+            >= PLACE_TIMEOUT then
+            break
+        end
+        task.wait(0.1)
+    end
+    return false
+end
+local function PlaceCarriedEgg()
+    DebugPrint(
+        "========== PLACEMENT START =========="
+    )
+    local Plot =
+        FindOwnPlot()
+    if not Plot then
+        return false
+    end
+    local PlacedEggs =
+        GetPlacedEggs(
+            Plot
+        )
+    if not PlacedEggs then
+        return false
+    end
+    DebugPrint(
+        "Returning to own plot"
+    )
+    local PlotPosition =
+        Plot:GetPivot().Position
+    if not MoveToPosition(
+        PlotPosition,
+        3
+    ) then
+        return false
+    end
+    task.wait(0.7)
+    local Tool =
+        WaitForCarriedEggTool(
+            TOOL_TIMEOUT
+        )
+    if not Tool then
+        DebugPrint(
+            "Egg Tool not found"
+        )
+        return false
+    end
+    local EggId =
+        Tool:GetAttribute(
+            "EggId"
+        )
+    if not EggId then
+        DebugPrint(
+            "EggId missing"
+        )
+        return false
+    end
+    DebugPrint(
+        "Tool:",
+        Tool.Name
+    )
+    DebugPrint(
+        "EggId:",
+        tostring(
+            EggId
+        )
+    )
+    DebugPrint(
+        "EggName:",
+        tostring(
+            Tool:GetAttribute(
+                "EggName"
+            )
+        )
+    )
+    DebugPrint(
+        "Rarity:",
+        tostring(
+            Tool:GetAttribute(
+                "Rarity"
+            )
+        )
+    )
+    local PreviousCount =
+        #PlacedEggs:GetChildren()
+    if not EquipEggTool(
+        Tool
+    ) then
+        return false
+    end
+    task.wait(0.3)
+    local PlacementPosition =
+        FindFreePlacementPosition(
+            Plot,
+            PlacedEggs
+        )
+    if not PlacementPosition then
+        return false
+    end
+    local Zone =
+        GetPlacementZone(
+            Plot
+        )
+    if not Zone
+        or not IsInsidePlacementZone(
+            Zone,
+            PlacementPosition
+        ) then
+        DebugPrint(
+            "Final placement safety check failed"
+        )
+        return false
+    end
+    if not MoveToPlacementPosition(
+        PlacementPosition
+    ) then
+        DebugPrint(
+            "Could not move close enough"
+        )
+        return false
+    end
+    task.wait(0.25)
+    DebugPrint(
+        "CarriedEggCount BEFORE:",
+        tostring(
+            GetCarriedEggCount()
+        )
+    )
+    DebugPrint(
+        "PlaceEggRequest EggId:",
+        tostring(
+            EggId
+        )
+    )
+    DebugPrint(
+        "PlaceEggRequest Position:",
+        tostring(
+            PlacementPosition
+        )
+    )
+    local Success,
+        Error =
+        pcall(function()
+            PlaceEggRequest:FireServer(
+                EggId,
+                PlacementPosition
+            )
+        end)
+    DebugPrint(
+        "PlaceEggRequest:",
+        tostring(
+            Success
+        ),
+        tostring(
+            Error
+        )
+    )
+    if not Success then
+        return false
+    end
+    local Confirmed =
+        WaitForPlacement(
+            PlacedEggs,
+            PreviousCount
+        )
+    DebugPrint(
+        "Placement confirmed:",
+        tostring(
+            Confirmed
+        )
+    )
+    DebugPrint(
+        "CarriedEggCount AFTER:",
+        tostring(
+            GetCarriedEggCount()
+        )
+    )
+    return Confirmed
+end
+local function StealEgg(Egg)
+    if not Egg
+        or not Egg.Parent then
+        return false
+    end
+    if GetCarriedEggCount() > 0 then
+        return false
+    end
+    local Prompt =
+        GetCollectPrompt(
+            Egg
+        )
+    local Attachment =
+        GetEggPromptAttachment(
+            Egg
+        )
+    if not Prompt
+        or not Attachment then
+        return false
+    end
+    if not Prompt.Enabled then
+        return false
+    end
+    DebugPrint(
+        "Stealing:",
+        Egg.Name,
+        "Rarity:",
+        tostring(
+            Egg:GetAttribute(
+                "Rarity"
+            )
+        )
+    )
+    if not MoveToAttachment(
+        Attachment,
+        STEAL_DISTANCE
+    ) then
+        return false
+    end
+    task.wait(0.2)
+    Prompt =
+        GetCollectPrompt(
+            Egg
+        )
+    if not Prompt
+        or not Prompt.Enabled then
+        return false
+    end
+    ActivatePrompt(
+        Prompt
+    )
+    local Start =
+        tick()
+    while not Unloaded
+        and AutoStealEnabled do
+        local Count =
+            GetCarriedEggCount()
+        if Count >= 1 then
+            DebugPrint(
+                "Steal success:",
+                Egg.Name,
+                "CarriedEggCount:",
+                tostring(
+                    Count
+                )
+            )
+            return true
+        end
+        if tick() - Start
+            >= STEAL_TIMEOUT then
+            break
+        end
+        task.wait(0.05)
+    end
+    DebugPrint(
+        "Steal failed:",
+        Egg.Name
+    )
+    return false
+end
+local function BeginAutoStealSlotWait()
+    local PlacedEggs = GetPlacedEggs()
+    AutoStealWaitingPlacedEggs = {}
+    AutoStealWaitingPlacedEggCount = 0
+    if PlacedEggs then
+        local Children = PlacedEggs:GetChildren()
+        AutoStealWaitingPlacedEggCount = #Children
+        for _, Egg in ipairs(Children) do
+            AutoStealWaitingPlacedEggs[Egg] = true
+        end
+    end
+    AutoStealWaitingForSlot = true
+    DebugPrint(
+        "AutoSteal waiting for free slot. PlacedEggs:",
+        tostring(AutoStealWaitingPlacedEggCount)
+    )
+end
+local function ResetAutoStealSlotWait()
+    AutoStealWaitingForSlot = false
+    AutoStealWaitingPlacedEggs = {}
+    AutoStealWaitingPlacedEggCount = 0
+end
+local function IsAutoStealSlotFree()
+    if not AutoStealWaitingForSlot then
+        return false
+    end
+    local PlacedEggs = GetPlacedEggs()
+    if not PlacedEggs then
+        return false
+    end
+    local CurrentChildren = PlacedEggs:GetChildren()
+    if #CurrentChildren < AutoStealWaitingPlacedEggCount then
+        DebugPrint(
+            "AutoSteal detected free slot by count:",
+            tostring(AutoStealWaitingPlacedEggCount),
+            "->",
+            tostring(#CurrentChildren)
+        )
+        return true
+    end
+    for Egg in pairs(AutoStealWaitingPlacedEggs) do
+        if not Egg.Parent or not Egg:IsDescendantOf(PlacedEggs) then
+            DebugPrint(
+                "AutoSteal detected hatched egg:",
+                tostring(Egg.Name)
+            )
+            return true
+        end
+    end
+    return false
+end
+local function HandleFailedAutoStealPlacement()
+    if AutoStealStrengthFarmEnabled then
+        BeginAutoStealSlotWait()
+        StartStrengthFarm("Steal")
+    else
+        ResetAutoStealSlotWait()
+        StopStrengthFarm("Steal")
+    end
+end
+local function TryPlaceAutoStealEgg()
+    if AutoStealWaitingForSlot then
+        if not IsAutoStealSlotFree() then
+            if AutoStealStrengthFarmEnabled then
+                StartStrengthFarm("Steal")
+            end
+            return false
+        end
+        DebugPrint("Free egg slot detected. Retrying placement")
+        PrepareForAction("Steal")
+        task.wait(0.15)
+        local Success = PlaceCarriedEgg()
+        if Success then
+            ResetAutoStealSlotWait()
+            return true
+        end
+        HandleFailedAutoStealPlacement()
+        return false
+    end
+    PrepareForAction("Steal")
+    task.wait(0.15)
+    local Success = PlaceCarriedEgg()
+    if Success then
+        ResetAutoStealSlotWait()
+        return true
+    end
+    HandleFailedAutoStealPlacement()
+    return false
+end
+local function ProcessAutoSteal()
+    if not AutoStealEnabled then
+        StopStrengthFarm("Steal")
+        return
+    end
+    local Tool = FindCarriedEggTool()
+    local Carried = GetCarriedEggCount() > 0
+    if Tool or Carried then
+        TryPlaceAutoStealEgg()
+        return
+    end
+    if AutoStealWaitingForSlot then
+        ResetAutoStealSlotWait()
+    end
+    local Egg = FindBestStealEgg()
+    if not Egg then
+        if AutoStealStrengthFarmEnabled then
+            StartStrengthFarm("Steal")
+        else
+            StopStrengthFarm("Steal")
+        end
+        return
+    end
+    PrepareForAction("Steal")
+    task.wait(0.15)
+    if not StealEgg(Egg) then
+        ResumeStrengthFarm()
+        return
+    end
+    task.wait(0.2)
+    if GetCarriedEggCount() <= 0 and not FindCarriedEggTool() then
+        DebugPrint("No carried egg detected")
+        ResumeStrengthFarm()
+        return
+    end
+    TryPlaceAutoStealEgg()
+end
+local function GetMutationPrompt()
+    local Map = Workspace:FindFirstChild("Map")
+    if not Map then
+        return nil
+    end
+    local Mutations = Map:FindFirstChild("Mutations")
+    if not Mutations then
+        return nil
+    end
+    local Prompt = Mutations:FindFirstChild("MutationPrompt", true)
+    if Prompt and Prompt:IsA("ProximityPrompt") then
+        return Prompt
+    end
+    return nil
+end
+local function GetInstancePosition(Object)
+    if not Object or not Object.Parent then
+        return nil
+    end
+    local Success, CFrameValue = pcall(function()
+        return Object.CFrame
+    end)
+    if Success and typeof(CFrameValue) == "CFrame" then
+        return CFrameValue.Position
+    end
+    if Object:IsA("Attachment") then
+        return Object.WorldPosition
+    end
+    if Object:IsA("BasePart") then
+        return Object.Position
+    end
+    if Object:IsA("Model") then
+        return Object:GetPivot().Position
+    end
+    local Part = Object:FindFirstChildWhichIsA("BasePart", true)
+    if Part then
+        return Part.Position
+    end
+    return nil
+end
+local function GetMutationPromptPosition(Prompt)
+    if not Prompt then
+        return nil
+    end
+    local Parent = Prompt.Parent
+    local Position = GetInstancePosition(Parent)
+    if Position then
+        return Position
+    end
+    local Ancestor = Parent
+    for _ = 1, 6 do
+        if not Ancestor then
+            break
+        end
+        Position = GetInstancePosition(Ancestor)
+        if Position then
+            return Position
+        end
+        Ancestor = Ancestor.Parent
+    end
+    return nil
+end
+local function GetPetToolKey(Tool)
+    if not Tool or not Tool:IsA("Tool") then
+        return nil
+    end
+    local Attributes = {
+        "PetName",
+        "Pet",
+        "Name",
+        "DisplayName"
+    }
+    for _, AttributeName in ipairs(Attributes) do
+        local Value = Tool:GetAttribute(AttributeName)
+        if Value ~= nil and tostring(Value) ~= "" then
+            return tostring(Value)
+        end
+    end
+    local ValueObject = Tool:FindFirstChild("PetName", true)
+    if ValueObject and ValueObject:IsA("StringValue") and ValueObject.Value ~= "" then
+        return ValueObject.Value
+    end
+    return Tool.Name
+end
+local function GetInventoryPetTools()
+    local Result = {}
+    local Seen = {}
+    local Backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+    if Backpack then
+        for _, Object in ipairs(Backpack:GetChildren()) do
+            if Object:IsA("Tool") and not Seen[Object] then
+                Seen[Object] = true
+                table.insert(Result, Object)
+            end
+        end
+    end
+    UpdateCharacter()
+    if Character then
+        for _, Object in ipairs(Character:GetChildren()) do
+            if Object:IsA("Tool") and not Seen[Object] then
+                Seen[Object] = true
+                table.insert(Result, Object)
+            end
+        end
+    end
+    return Result
+end
+local function FindFiveMatchingPets()
+    local Groups = {}
+    for _, Tool in ipairs(GetInventoryPetTools()) do
+        local Key = GetPetToolKey(Tool)
+        if Key then
+            Groups[Key] = Groups[Key] or {}
+            table.insert(Groups[Key], Tool)
+        end
+    end
+    local BestKey
+    local BestTools
+    for Key, Tools in pairs(Groups) do
+        if #Tools >= 5 and (not BestTools or #Tools > #BestTools) then
+            BestKey = Key
+            BestTools = Tools
+        end
+    end
+    if not BestTools then
+        return nil, nil
+    end
+    local Selected = {}
+    for Index = 1, 5 do
+        Selected[Index] = BestTools[Index]
+    end
+    return BestKey, Selected
+end
+local function IsToolOwned(Tool)
+    if not Tool then
+        return false
+    end
+    local Backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+    return (Backpack and Tool:IsDescendantOf(Backpack)) or (Character and Tool:IsDescendantOf(Character))
+end
+local function EquipMutationPet(Tool)
+    if not Tool or not IsToolOwned(Tool) then
+        return false
+    end
+    UpdateCharacter()
+    if not Humanoid or not Character then
+        return false
+    end
+    if not Tool:IsDescendantOf(Character) then
+        local Success = pcall(function()
+            Humanoid:EquipTool(Tool)
+        end)
+        if not Success then
+            return false
+        end
+    end
+    local Start = tick()
+    while not Unloaded and tick() - Start < 2 do
+        if Tool:IsDescendantOf(Character) then
+            return true
+        end
+        task.wait(0.05)
+    end
+    return Tool:IsDescendantOf(Character)
+end
+local function ProcessOneMutationPet(Prompt, Tool)
+    if not Prompt or not Prompt.Parent or not Tool then
+        return false
+    end
+    if not EquipMutationPet(Tool) then
+        DebugPrint("AutoMutation: failed to equip pet", Tool and Tool.Name)
+        return false
+    end
+    task.wait(0.15)
+    Prompt = GetMutationPrompt()
+    if not Prompt or not Prompt.Enabled then
+        return false
+    end
+    local Position = GetMutationPromptPosition(Prompt)
+    if not Position then
+        DebugPrint("AutoMutation: mutation prompt position not found")
+        return false
+    end
+    if not MoveToPosition(Position, 3) then
+        return false
+    end
+    local Success = ActivatePrompt(Prompt)
+    DebugPrint("AutoMutation: prompt", tostring(Success), "pet", Tool.Name)
+    task.wait(0.35)
+    return Success
+end
+local function ClearAutoMutationQueue()
+    AutoMutationQueue = {}
+    AutoMutationQueueKey = nil
+    AutoMutationQueueIndex = 1
+end
+local function PrepareAutoMutationQueue()
+    local PetKey, PetTools = FindFiveMatchingPets()
+    if not PetTools then
+        ClearAutoMutationQueue()
+        return false
+    end
+    if AutoMutationQueueKey ~= PetKey or #AutoMutationQueue ~= 5 then
+        AutoMutationQueue = PetTools
+        AutoMutationQueueKey = PetKey
+        AutoMutationQueueIndex = 1
+        DebugPrint("AutoMutation: queued 5 pets", PetKey)
+    end
+    return true
+end
+local function ProcessAutoMutation()
+    local Prompt = GetMutationPrompt()
+    if not Prompt then
+        ClearAutoMutationQueue()
+        StopStrengthFarm("Mutation")
+        DebugPrint("AutoMutation: MutationPrompt not found")
+        return
+    end
+    if not PrepareAutoMutationQueue() then
+        if AutoMutationStrengthFarmEnabled then
+            StartStrengthFarm("Mutation")
+        else
+            StopStrengthFarm("Mutation")
+        end
+        return
+    end
+    local Tool = AutoMutationQueue[AutoMutationQueueIndex]
+    if not Tool or not IsToolOwned(Tool) then
+        PrepareAutoMutationQueue()
+        Tool = AutoMutationQueue[AutoMutationQueueIndex]
+    end
+    if not Tool or not IsToolOwned(Tool) then
+        ClearAutoMutationQueue()
+        if AutoMutationStrengthFarmEnabled then
+            StartStrengthFarm("Mutation")
+        end
+        return
+    end
+    PrepareForAction("Mutation")
+    task.wait(0.15)
+    Prompt = GetMutationPrompt()
+    if not Prompt or not Prompt.Enabled then
+        ResumeStrengthFarm()
+        return
+    end
+    local Success = ProcessOneMutationPet(Prompt, Tool)
+    if not Success then
+        ClearAutoMutationQueue()
+        ResumeStrengthFarm()
+        return
+    end
+    AutoMutationQueueIndex += 1
+    if AutoMutationQueueIndex > 5 then
+        ClearAutoMutationQueue()
+    end
+    ResumeStrengthFarm()
+end
+local function StartAutoMutation()
+    if AutoMutationThread then
+        return
+    end
+    AutoMutationThread = task.spawn(function()
+        DebugPrint("AutoMutation thread started")
+        while not Unloaded do
+            if AutoMutationEnabled and AcquireAction("AutoMutation") then
+                local Success, Error = pcall(ProcessAutoMutation)
+                if not Success then
+                    DebugPrint("AutoMutation error:", tostring(Error))
+                end
+                ReleaseAction()
+            end
+            task.wait(0.25)
+        end
+    end)
+end
+local function StartAutoHatch()
+    if AutoHatchThread then
+        return
+    end
+    AutoHatchThread = task.spawn(function()
+        DebugPrint("AutoHatch thread started")
+        while not Unloaded do
+            if AutoHatchEnabled and AcquireAction("AutoHatch") then
+                local Success, Error = pcall(ProcessAutoHatch)
+                if not Success then
+                    DebugPrint("AutoHatch error:", tostring(Error))
+                end
+                ReleaseAction()
+            end
+            task.wait(0.15)
+        end
+    end)
+end
+local function StartAutoSteal()
+    if AutoStealThread then
+        return
+    end
+    AutoStealThread = task.spawn(function()
+        DebugPrint("AutoSteal thread started")
+        while not Unloaded do
+            if AutoStealEnabled and AcquireAction("AutoSteal") then
+                local Success, Error = pcall(ProcessAutoSteal)
+                if not Success then
+                    DebugPrint("AutoSteal error:", tostring(Error))
+                end
+                ReleaseAction()
+            end
+            task.wait(0.2)
+        end
+    end)
+end
+UpdateCharacter()
+CharacterConnection =
+    LocalPlayer.CharacterAdded:Connect(
+        function()
+            task.wait(0.25)
+            UpdateCharacter()
+            ApplySpeed()
+            ApplyJump()
+            if NoClipEnabled then
+                StartNoClip()
+            end
+            if FlyEnabled then
+                StartFly()
+            end
+            if AntiRagdollEnabled then
+                StartAntiRagdoll()
+            end
+        end
+    )
+SpeedConnection =
+    RunService.Heartbeat:Connect(
+        function()
+            if Unloaded then
+                return
+            end
+            if SpeedEnabled
+                and Humanoid
+                and Humanoid.Parent then
+                if Humanoid.WalkSpeed
+                    ~= SpeedValue then
+                    Humanoid.WalkSpeed =
+                        SpeedValue
+                end
+            end
+        end
+    )
+JumpConnection =
+    RunService.Heartbeat:Connect(
+        function()
+            if Unloaded then
+                return
+            end
+            if JumpEnabled
+                and Humanoid
+                and Humanoid.Parent then
+                Humanoid.UseJumpPower =
+                    true
+                if Humanoid.JumpPower
+                    ~= JumpValue then
+                    Humanoid.JumpPower =
+                        JumpValue
+                end
+            end
+        end
+    )
+local Window =
+    Library:CreateWindow({
+        Name = "JulyScripts",
+        SubName = "Jump For Animals",
+        Logo = "rbxassetid://116255434488074",
+        SettingsTabEnabled = true
+    })
+
+local function HideBottomPlayerInfo()
+    if not Window or not Window.Items then
+        return
+    end
+
+    local SidebarItem = Window.Items["Sidebar"]
+    local PagesItem = Window.Items["Pages"]
+    local Sidebar = SidebarItem and SidebarItem.Instance
+    local Pages = PagesItem and PagesItem.Instance
+    if not Sidebar then
+        return
+    end
+
+    for _, Child in ipairs(Sidebar:GetChildren()) do
+        if Child:IsA("Frame") then
+            local IsBottomTab = false
+            local Position = Child.Position
+            local Size = Child.Size
+            if Position.Y.Scale == 1 and Position.Y.Offset >= 15 and Position.Y.Offset <= 25 and Size.Y.Scale == 0 and Size.Y.Offset >= 100 then
+                IsBottomTab = true
+            end
+            if not IsBottomTab then
+                for _, Descendant in ipairs(Child:GetDescendants()) do
+                    if Descendant:IsA("TextLabel") or Descendant:IsA("TextButton") then
+                        local Text = tostring(Descendant.Text or "")
+                        if Text == "Expires:" or Text:find("Expires:", 1, true) or Text == LocalPlayer.Name then
+                            IsBottomTab = true
+                            break
+                        end
+                    end
+                end
+            end
+            if IsBottomTab then
+                Child:Destroy()
+            end
+        end
+    end
+
+    for _, Child in ipairs(Sidebar:GetChildren()) do
+        if Child:IsA("Frame") then
+            local Position = Child.Position
+            local Size = Child.Size
+            if Size.Y.Scale == 0 and Size.Y.Offset == 1 and Position.Y.Scale == 1 and Position.Y.Offset <= -80 then
+                Child:Destroy()
+            end
+        end
+    end
+
+    if Pages and Pages.Parent then
+        Pages.Size = UDim2.new(1, -16, 1, -85)
+    end
+end
+
+HideBottomPlayerInfo()
+task.defer(HideBottomPlayerInfo)
+task.delay(0.25, HideBottomPlayerInfo)
+
+local MainTab =
+    Window:AddTab({
+        Name = "Main",
+        Icon = "house"
+    })
+local EggSection =
+    MainTab:AddSection({
+        Name = "Eggs",
+        Icon = "egg"
+    })
+EggSection:AddToggle({
+    Name = "AutoHatch",
+    Flag = "AutoHatch",
+    Default = false,
+    Callback = function(Value)
+        AutoHatchEnabled = Value
+        if not Value and AutoHatchSquatting then
+            StopStrengthFarm("Hatch")
+        end
+        DebugPrint(
+            "AutoHatch:",
+            Value and "ENABLED" or "DISABLED"
+        )
+    end
+})
+EggSection:AddToggle({
+    Name = "Strength Farm if wait",
+    Flag = "AutoHatchStrengthFarm",
+    Default = false,
+    Callback = function(Value)
+        AutoHatchStrengthFarmEnabled = Value
+        if not Value and AutoHatchSquatting then
+            StopStrengthFarm("Hatch")
+        end
+    end
+})
+EggSection:AddToggle({
+    Name = "Auto Steal Egg",
+    Flag = "AutoStealEgg",
+    Default = false,
+    Callback = function(Value)
+        AutoStealEnabled = Value
+        if not Value then
+            ResetAutoStealSlotWait()
+            if AutoStealSquatting then
+                StopStrengthFarm("Steal")
+            end
+        end
+        DebugPrint(
+            "AutoSteal:",
+            Value and "ENABLED" or "DISABLED"
+        )
+    end
+})
+EggSection:AddToggle({
+    Name = "Strength Farm if wait",
+    Flag = "AutoStealStrengthFarm",
+    Default = false,
+    Callback = function(Value)
+        AutoStealStrengthFarmEnabled = Value
+        if not Value then
+            ResetAutoStealSlotWait()
+            if AutoStealSquatting then
+                StopStrengthFarm("Steal")
+            end
+        end
+    end
+})
+local FilterSection =
+    MainTab:AddSection({
+        Name = "Auto Steal Filters",
+        Icon = "list-filter"
+    })
+FilterSection:AddDropdown({
+    Name = "Rarities",
+    Flag = "StealRarities",
+    Items = RarityOptions,
+    Multi = true,
+    Default = SelectedRarities,
+    Callback = function(Value)
+        SelectedRarities = {}
+        if type(Value) == "table" then
+            for _, Rarity in ipairs(
+                Value
+            ) do
+                table.insert(
+                    SelectedRarities,
+                    Rarity
+                )
+            end
+        end
+        DebugPrint(
+            "Selected rarities:",
+            table.concat(
+                SelectedRarities,
+                ", "
+            )
+        )
+    end
+})
+FilterSection:AddDropdown({
+    Name = "Locations",
+    Flag = "StealLocations",
+    Items = LocationOptions,
+    Multi = true,
+    Default = SelectedLocations,
+    Callback = function(Value)
+        SelectedLocations = {}
+        if type(Value) == "table" then
+            for _, Location in ipairs(
+                Value
+            ) do
+                table.insert(
+                    SelectedLocations,
+                    Location
+                )
+            end
+        end
+        DebugPrint(
+            "Selected locations:",
+            table.concat(
+                SelectedLocations,
+                ", "
+            )
+        )
+    end
+})
+FilterSection:AddToggle({
+    Name = "Debug",
+    Flag = "EggDebug",
+    Default = false,
+    Callback = function(Value)
+        DebugEnabled =
+            Value
+        print(
+            "[JulyScripts][AutoEgg]",
+            "Debug:",
+            Value
+                and "ENABLED"
+                or "DISABLED"
+        )
+    end
+})
+local AutoTab =
+    Window:AddTab({
+        Name = "Auto",
+        Icon = "zap"
+    })
+local AutoSection =
+    AutoTab:AddSection({
+        Name = "Automation",
+        Icon = "zap"
+    })
+AutoSection:AddToggle({
+    Name = "Auto Trail",
+    Flag = "AutoTrail",
+    Default = false,
+    Callback = function(Value)
+        AutoTrailEnabled = Value
+    end
+})
+AutoSection:AddToggle({
+    Name = "Auto Mutations",
+    Flag = "AutoMutations",
+    Default = false,
+    Callback = function(Value)
+        AutoMutationEnabled = Value
+        if not Value then
+            ClearAutoMutationQueue()
+            StopStrengthFarm("Mutation")
+        end
+    end
+})
+AutoSection:AddToggle({
+    Name = "Strength Farm if wait",
+    Flag = "AutoMutationStrengthFarm",
+    Default = false,
+    Callback = function(Value)
+        AutoMutationStrengthFarmEnabled = Value
+        if not Value and AutoMutationSquatting then
+            StopStrengthFarm("Mutation")
+        end
+    end
+})
+
+local PlayerTab =
+    Window:AddTab({
+        Name = "Player",
+        Icon = "user"
+    })
+local MovementSection =
+    PlayerTab:AddSection({
+        Name = "Movement",
+        Icon = "move"
+    })
+MovementSection:AddToggle({
+    Name = "SpeedHack",
+    Flag = "SpeedHack",
+    Default = false,
+    Callback = function(Value)
+        SpeedEnabled =
+            Value
+        ApplySpeed()
+    end
+})
+MovementSection:AddSlider({
+    Name = "Speed",
+    Flag = "SpeedValue",
+    Min = 16,
+    Max = 250,
+    Default = 16,
+    Decimals = 1,
+    Callback = function(Value)
+        SpeedValue =
+            Value
+        if SpeedEnabled then
+            ApplySpeed()
+        end
+    end
+})
+MovementSection:AddToggle({
+    Name = "JumpHack",
+    Flag = "JumpHack",
+    Default = false,
+    Callback = function(Value)
+        JumpEnabled =
+            Value
+        ApplyJump()
+    end
+})
+MovementSection:AddSlider({
+    Name = "Jump Power",
+    Flag = "JumpValue",
+    Min = 50,
+    Max = 250,
+    Default = 50,
+    Decimals = 1,
+    Callback = function(Value)
+        JumpValue =
+            Value
+        if JumpEnabled then
+            ApplyJump()
+        end
+    end
+})
+MovementSection:AddToggle({
+    Name = "NoClip",
+    Flag = "NoClip",
+    Default = false,
+    Callback = function(Value)
+        NoClipEnabled =
+            Value
+        if Value then
+            StartNoClip()
+        else
+            StopNoClip()
+        end
+    end
+})
+MovementSection:AddToggle({
+    Name = "Fly",
+    Flag = "Fly",
+    Default = false,
+    Callback = function(Value)
+        FlyEnabled =
+            Value
+        if Value then
+            StartFly()
+        else
+            StopFly()
+        end
+    end
+})
+MovementSection:AddSlider({
+    Name = "Fly Speed",
+    Flag = "FlySpeed",
+    Min = 10,
+    Max = 250,
+    Default = 50,
+    Decimals = 1,
+    Callback = function(Value)
+        FlySpeed =
+            Value
+    end
+})
+MovementSection:AddToggle({
+    Name = "Anti Ragdoll",
+    Flag = "AntiRagdoll",
+    Default = false,
+    Callback = function(Value)
+        AntiRagdollEnabled = Value
+        if Value then
+            StartAntiRagdoll()
+        else
+            StopAntiRagdoll()
+        end
+    end
+})
+
+StartAutoHatch()
+StartAutoSteal()
+StartAutoMutation()
+StartAutoTrail()
+task.spawn(function()
+    while not Unloaded do
+        if not UnloadAdded
+            and Window.SettingsPage then
+            UnloadAdded = true
+            local ScriptSection =
+                Window.SettingsPage:AddSection({
+                    Name = "Script",
+                    Icon = "settings"
+                })
+            ScriptSection:AddButton({
+                Name = "Unload",
+                Callback = function()
+                    if Unloaded then
+                        return
+                    end
+                    Unloaded = true
+                    AutoHatchEnabled = false
+                    AutoStealEnabled = false
+                    AutoMutationEnabled = false
+                    SpeedEnabled = false
+                    JumpEnabled = false
+                    NoClipEnabled = false
+                    FlyEnabled = false
+                    AntiRagdollEnabled = false
+                    AutoHatchStrengthFarmEnabled = false
+                    AutoStealStrengthFarmEnabled = false
+                    AutoMutationStrengthFarmEnabled = false
+                    AutoTrailEnabled = false
+                    ActionBusy = false
+                    ActionOwner = nil
+                    StrengthFarmRequests = {}
+                    AutoMutationQueue = {}
+                    AutoMutationQueueKey = nil
+                    AutoMutationQueueIndex = 1
+                    if StrengthFarmActive then
+                        pcall(function()
+                            StopSquattingRequest:FireServer()
+                        end)
+                    end
+                    StrengthFarmActive = false
+                    AutoHatchSquatting = false
+                    AutoStealSquatting = false
+                    AutoMutationSquatting = false
+                    StopFly()
+                    StopAntiRagdoll()
+                    StopNoClip()
+                    if CharacterConnection then
+                        CharacterConnection:Disconnect()
+                        CharacterConnection = nil
+                    end
+                    if SpeedConnection then
+                        SpeedConnection:Disconnect()
+                        SpeedConnection = nil
+                    end
+                    if JumpConnection then
+                        JumpConnection:Disconnect()
+                        JumpConnection = nil
+                    end
+                    if AutoHatchThread then
+                        task.cancel(
+                            AutoHatchThread
+                        )
+                        AutoHatchThread = nil
+                    end
+                    if AutoStealThread then
+                        task.cancel(
+                            AutoStealThread
+                        )
+                        AutoStealThread = nil
+                    end
+                    if AutoMutationThread then
+                        task.cancel(
+                            AutoMutationThread
+                        )
+                        AutoMutationThread = nil
+                    end
+                    if AutoTrailThread then
+                        task.cancel(
+                            AutoTrailThread
+                        )
+                        AutoTrailThread = nil
+                    end
+                    if Humanoid
+                        and Humanoid.Parent then
+                        Humanoid.WalkSpeed =
+                            16
+                        Humanoid.UseJumpPower =
+                            true
+                        Humanoid.JumpPower =
+                            50
+                    end
+                    getgenv().JulyEggScript =
+                        nil
+                    task.defer(function()
+                        pcall(function()
+                            Library:Unload()
+                        end)
+                    end)
+                end
+            })
+        end
+        task.wait(0.1)
+    end
+end)
