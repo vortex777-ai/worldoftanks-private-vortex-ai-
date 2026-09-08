@@ -1,0 +1,2047 @@
+if getgenv().Library then
+
+    pcall(function()
+
+        getgenv().Library:Unload()
+
+    end)
+
+end
+
+local Library = loadstring(game:HttpGet(
+
+    "https://raw.githubusercontent.com/vortex777-ai/ui-worldofS-st/refs/heads/main/Stellar.lua"
+
+))()
+
+if not Library then
+
+    return
+
+end
+
+local Players = game:GetService("Players")
+
+local Workspace = game:GetService("Workspace")
+
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+
+local Camera = Workspace.CurrentCamera
+
+local Unloaded = false
+
+local Connections = {}
+
+local Drawings = {}
+
+local Aimbot = {
+
+    Enabled = false,
+
+    Range = 3000,
+
+    FOVRadius = 150,
+
+    AimAtHead = true,
+
+    TeamCheck = true,
+
+    WallCheck = true,
+
+    Smoothness = 0,
+
+    ShowFOVCircle = false,
+
+    FOVCircleColor = Color3.fromRGB(255,255,255),
+
+    FOVCircleThickness = 1,
+
+    Keybind = nil,
+
+    Target = nil,
+
+    FOVCircle = nil
+
+}
+
+local ThirdPerson = {
+    Enabled = false,
+    MinZoomDistance = 8,
+    MaxZoomDistance = 12,
+    CameraOffset = Vector3.new(1.5, 0, 0),
+    Connection = nil,
+    OriginalCameraMode = nil,
+    OriginalMinZoomDistance = nil,
+    OriginalMaxZoomDistance = nil,
+    OriginalCameraOffset = nil
+}
+
+local WeaponChams = {
+    Enabled = false,
+    Material = Enum.Material.Neon,
+    Color = Color3.fromRGB(255, 80, 255),
+    Transparency = 0,
+    Connection = nil,
+    Stored = {}
+}
+
+local LocalPlayerChams = {
+    Enabled = false,
+    Material = Enum.Material.Neon,
+    Color = Color3.fromRGB(255, 80, 255),
+    Transparency = 0,
+    Connection = nil,
+    Stored = {}
+}
+
+local ESP = {
+
+    Enabled = false,
+
+    Boxes = true,
+
+    Names = true,
+
+    Distance = true,
+
+    HealthBar = true,
+
+    Tracers = false,
+
+    TracerOnlyEnemy = false,
+
+    HeadDots = false,
+
+    TeamColor = false,
+
+    BoxColor = Color3.fromRGB(255,50,50),
+
+    NameColor = Color3.fromRGB(255,255,255),
+
+    DistanceColor = Color3.fromRGB(200,200,200),
+
+    TracerColor = Color3.fromRGB(255,50,50),
+
+    HeadDotColor = Color3.fromRGB(255,255,255),
+
+    MaxDistance = 2500,
+
+    BoxThickness = 1,
+
+    TracerThickness = 1,
+
+    NameSize = 13,
+
+    DistanceSize = 11,
+
+    HeadDotRadius = 3
+
+}
+
+local function GetCamera()
+
+    Camera = Workspace.CurrentCamera or Camera
+
+    return Camera
+
+end
+
+local WeaponMaterialMap = {
+    Plastic = Enum.Material.Plastic,
+    SmoothPlastic = Enum.Material.SmoothPlastic,
+    Neon = Enum.Material.Neon,
+    ForceField = Enum.Material.ForceField,
+    Glass = Enum.Material.Glass,
+    Metal = Enum.Material.Metal,
+    DiamondPlate = Enum.Material.DiamondPlate,
+    Foil = Enum.Material.Foil,
+    Ice = Enum.Material.Ice
+}
+
+local function GetWeaponCamera()
+    return Workspace:FindFirstChild("Camera")
+end
+
+local function RestoreWeaponPart(Part, Data)
+    if not Part or not Data then return end
+    pcall(function()
+        Part.Material = Data.Material
+        Part.Color = Data.Color
+        Part.Transparency = Data.Transparency
+        Part.LocalTransparencyModifier = Data.LocalTransparencyModifier
+    end)
+end
+
+local function ApplyWeaponChamsToPart(Part)
+    if not WeaponChams.Enabled or not Part or not Part:IsA("BasePart") then return end
+
+    if not WeaponChams.Stored[Part] then
+        WeaponChams.Stored[Part] = {
+            Material = Part.Material,
+            Color = Part.Color,
+            Transparency = Part.Transparency,
+            LocalTransparencyModifier = Part.LocalTransparencyModifier
+        }
+    end
+
+    pcall(function()
+        Part.Material = WeaponChams.Material
+        Part.Color = WeaponChams.Color
+        Part.Transparency = WeaponChams.Transparency
+        Part.LocalTransparencyModifier = 0
+    end)
+end
+
+local function ApplyWeaponChams()
+    if not WeaponChams.Enabled then return end
+
+    local WeaponCamera = GetWeaponCamera()
+    if not WeaponCamera then return end
+
+    for _, WeaponModel in ipairs(WeaponCamera:GetChildren()) do
+        local Knife = WeaponModel:FindFirstChild("Knife", true)
+        if Knife then
+            if Knife:IsA("BasePart") then
+                ApplyWeaponChamsToPart(Knife)
+            end
+
+            for _, Object in ipairs(Knife:GetDescendants()) do
+                if Object:IsA("BasePart") then
+                    ApplyWeaponChamsToPart(Object)
+                end
+            end
+        end
+    end
+end
+
+local function StopWeaponChams()
+    WeaponChams.Enabled = false
+
+    if WeaponChams.Connection then
+        WeaponChams.Connection:Disconnect()
+        WeaponChams.Connection = nil
+    end
+
+    for Part, Data in pairs(WeaponChams.Stored) do
+        RestoreWeaponPart(Part, Data)
+    end
+
+    table.clear(WeaponChams.Stored)
+end
+
+local function StartWeaponChams()
+    if WeaponChams.Connection then return end
+
+    WeaponChams.Enabled = true
+    ApplyWeaponChams()
+
+    local Elapsed = 0
+    WeaponChams.Connection = RunService.Heartbeat:Connect(function(DeltaTime)
+        if Unloaded or not WeaponChams.Enabled then return end
+
+        Elapsed += DeltaTime
+        if Elapsed < 0.1 then return end
+        Elapsed = 0
+
+        ApplyWeaponChams()
+    end)
+end
+
+local function RestoreLocalPlayerChamsPart(Part, Data)
+    if not Part or not Data then return end
+    pcall(function()
+        Part.Material = Data.Material
+        Part.Color = Data.Color
+        Part.Transparency = Data.Transparency
+        Part.LocalTransparencyModifier = Data.LocalTransparencyModifier
+    end)
+end
+
+local function ApplyLocalPlayerChamsToPart(Part)
+    if not LocalPlayerChams.Enabled or not Part or not Part:IsA("BasePart") then return end
+
+    if not LocalPlayerChams.Stored[Part] then
+        LocalPlayerChams.Stored[Part] = {
+            Material = Part.Material,
+            Color = Part.Color,
+            Transparency = Part.Transparency,
+            LocalTransparencyModifier = Part.LocalTransparencyModifier
+        }
+    end
+
+    pcall(function()
+        Part.Material = LocalPlayerChams.Material
+        Part.Color = LocalPlayerChams.Color
+        Part.Transparency = LocalPlayerChams.Transparency
+        Part.LocalTransparencyModifier = 0
+    end)
+end
+
+local function ApplyLocalPlayerChams()
+    if not LocalPlayerChams.Enabled then return end
+
+    local Character = LocalPlayer.Character
+    if not Character or not Character.Parent then return end
+
+    for _, Part in ipairs(Character:GetDescendants()) do
+        if Part:IsA("BasePart") then
+            local Name = Part.Name:lower()
+            if Name ~= "humanoidrootpart" then
+                ApplyLocalPlayerChamsToPart(Part)
+            end
+        end
+    end
+end
+
+local function StopLocalPlayerChams()
+    LocalPlayerChams.Enabled = false
+
+    if LocalPlayerChams.Connection then
+        LocalPlayerChams.Connection:Disconnect()
+        LocalPlayerChams.Connection = nil
+    end
+
+    for Part, Data in pairs(LocalPlayerChams.Stored) do
+        RestoreLocalPlayerChamsPart(Part, Data)
+    end
+
+    table.clear(LocalPlayerChams.Stored)
+end
+
+local function StartLocalPlayerChams()
+    if LocalPlayerChams.Connection then return end
+
+    LocalPlayerChams.Enabled = true
+    ApplyLocalPlayerChams()
+
+    local Elapsed = 0
+    LocalPlayerChams.Connection = RunService.Heartbeat:Connect(function(DeltaTime)
+        if Unloaded or not LocalPlayerChams.Enabled then return end
+
+        Elapsed += DeltaTime
+        if Elapsed < 0.1 then return end
+        Elapsed = 0
+
+        ApplyLocalPlayerChams()
+    end)
+end
+
+local function StopThirdPerson()
+    ThirdPerson.Enabled = false
+    if ThirdPerson.Connection then
+        ThirdPerson.Connection:Disconnect()
+        ThirdPerson.Connection = nil
+    end
+
+    pcall(function()
+        if ThirdPerson.OriginalCameraMode ~= nil then
+            LocalPlayer.CameraMode = ThirdPerson.OriginalCameraMode
+        end
+        if ThirdPerson.OriginalMinZoomDistance ~= nil then
+            LocalPlayer.CameraMinZoomDistance = ThirdPerson.OriginalMinZoomDistance
+        end
+        if ThirdPerson.OriginalMaxZoomDistance ~= nil then
+            LocalPlayer.CameraMaxZoomDistance = ThirdPerson.OriginalMaxZoomDistance
+        end
+
+        local Character = LocalPlayer.Character
+        local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+        if Humanoid and ThirdPerson.OriginalCameraOffset ~= nil then
+            Humanoid.CameraOffset = ThirdPerson.OriginalCameraOffset
+        end
+    end)
+end
+
+local function StartThirdPerson()
+    if ThirdPerson.Connection then return end
+
+    ThirdPerson.Enabled = true
+    ThirdPerson.OriginalCameraMode = LocalPlayer.CameraMode
+    ThirdPerson.OriginalMinZoomDistance = LocalPlayer.CameraMinZoomDistance
+    ThirdPerson.OriginalMaxZoomDistance = LocalPlayer.CameraMaxZoomDistance
+
+    local Character = LocalPlayer.Character
+    local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+    ThirdPerson.OriginalCameraOffset = Humanoid and Humanoid.CameraOffset or Vector3.zero
+
+    ThirdPerson.Connection = RunService.RenderStepped:Connect(function()
+        if Unloaded or not ThirdPerson.Enabled then return end
+
+        pcall(function()
+            if LocalPlayer.CameraMode ~= Enum.CameraMode.Classic then
+                LocalPlayer.CameraMode = Enum.CameraMode.Classic
+            end
+
+            if LocalPlayer.CameraMinZoomDistance ~= ThirdPerson.MinZoomDistance then
+                LocalPlayer.CameraMinZoomDistance = ThirdPerson.MinZoomDistance
+            end
+
+            if LocalPlayer.CameraMaxZoomDistance ~= ThirdPerson.MaxZoomDistance then
+                LocalPlayer.CameraMaxZoomDistance = ThirdPerson.MaxZoomDistance
+            end
+
+            local CurrentCamera = GetCamera()
+            local Character = LocalPlayer.Character
+            local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+
+            if CurrentCamera and Humanoid then
+                if CurrentCamera.CameraType ~= Enum.CameraType.Custom then
+                    CurrentCamera.CameraType = Enum.CameraType.Custom
+                end
+                if CurrentCamera.CameraSubject ~= Humanoid then
+                    CurrentCamera.CameraSubject = Humanoid
+                end
+
+                Humanoid.CameraOffset = ThirdPerson.CameraOffset
+            end
+        end)
+    end)
+end
+
+
+local function GetHumanoid(Character)
+
+    return Character and Character:FindFirstChildOfClass("Humanoid")
+
+end
+
+local function GetRootPart(Character)
+
+    if not Character then return nil end
+
+    return Character:FindFirstChild("HumanoidRootPart")
+
+        or Character:FindFirstChild("UpperTorso")
+
+        or Character:FindFirstChild("Torso")
+
+        or Character:FindFirstChild("Head")
+
+end
+
+local function IsAlive(Character)
+
+    local Humanoid = GetHumanoid(Character)
+
+    return Character and Character.Parent and Humanoid and Humanoid.Health > 0
+
+end
+
+local function IsSameTeam(Player)
+
+    if not Player or Player == LocalPlayer then return false end
+
+    local LocalTeamId = LocalPlayer:GetAttribute("TeamID")
+
+    local TeamId = Player:GetAttribute("TeamID")
+
+    if LocalTeamId ~= nil and TeamId ~= nil then
+
+        return LocalTeamId == TeamId
+
+    end
+
+    local LocalTeam = LocalPlayer:GetAttribute("Team")
+
+    local Team = Player:GetAttribute("Team")
+
+    if LocalTeam ~= nil and Team ~= nil then
+
+        return LocalTeam == Team
+
+    end
+
+    local LocalMGTeam = LocalPlayer:GetAttribute("MG_Team")
+
+    local MGTeam = Player:GetAttribute("MG_Team")
+
+    if LocalMGTeam ~= nil and MGTeam ~= nil then
+
+        return LocalMGTeam == MGTeam
+
+    end
+
+    if LocalPlayer.Team ~= nil and Player.Team ~= nil then
+
+        return LocalPlayer.Team == Player.Team
+
+    end
+
+    return false
+
+end
+
+local function GetTargetPart(Character)
+
+    if not Character then return nil end
+
+    if Aimbot.AimAtHead then
+
+        local Head = Character:FindFirstChild("Head")
+
+        if Head and Head:IsA("BasePart") then
+
+            return Head
+
+        end
+
+    end
+
+    return Character:FindFirstChild("HumanoidRootPart")
+
+        or Character:FindFirstChild("UpperTorso")
+
+        or Character:FindFirstChild("Torso")
+
+        or Character:FindFirstChild("Head")
+
+end
+
+local function IsVisible(TargetPart)
+
+    if not Aimbot.WallCheck then return true end
+
+    local CurrentCamera = GetCamera()
+
+    local TargetCharacter = TargetPart and TargetPart.Parent
+
+    if not CurrentCamera or not TargetCharacter then return false end
+
+    local Origin = CurrentCamera.CFrame.Position
+
+    local Direction = TargetPart.Position - Origin
+
+    if Direction.Magnitude <= 0.001 then return true end
+
+    local Params = RaycastParams.new()
+
+    Params.FilterType = Enum.RaycastFilterType.Blacklist
+
+    Params.FilterDescendantsInstances = {LocalPlayer.Character, TargetCharacter}
+
+    Params.IgnoreWater = true
+
+    Params.RespectCanCollide = true
+
+    return Workspace:Raycast(Origin, Direction, Params) == nil
+
+end
+
+local function CreateFOVCircle()
+
+    if Aimbot.FOVCircle then return end
+
+    Aimbot.FOVCircle = Drawing.new("Circle")
+
+    Aimbot.FOVCircle.Filled = false
+
+    Aimbot.FOVCircle.NumSides = 64
+
+    Aimbot.FOVCircle.Thickness = Aimbot.FOVCircleThickness
+
+    Aimbot.FOVCircle.Transparency = 1
+
+    Aimbot.FOVCircle.Color = Aimbot.FOVCircleColor
+
+    Aimbot.FOVCircle.Visible = false
+
+end
+
+local function UpdateFOVCircle()
+
+    CreateFOVCircle()
+
+    if Unloaded or not Aimbot.Enabled or not Aimbot.ShowFOVCircle then
+
+        Aimbot.FOVCircle.Visible = false
+
+        return
+
+    end
+
+    local CurrentCamera = GetCamera()
+
+    if not CurrentCamera then
+
+        Aimbot.FOVCircle.Visible = false
+
+        return
+
+    end
+
+    local Viewport = CurrentCamera.ViewportSize
+
+    Aimbot.FOVCircle.Position = Vector2.new(Viewport.X / 2, Viewport.Y / 2)
+
+    Aimbot.FOVCircle.Radius = Aimbot.FOVRadius
+
+    Aimbot.FOVCircle.Thickness = Aimbot.FOVCircleThickness
+
+    Aimbot.FOVCircle.Color = Aimbot.FOVCircleColor
+
+    Aimbot.FOVCircle.Visible = true
+
+end
+
+local function GetClosestTarget()
+
+    local CurrentCamera = GetCamera()
+
+    if not CurrentCamera then return nil end
+
+    local Viewport = CurrentCamera.ViewportSize
+
+    local Center = Vector2.new(Viewport.X / 2, Viewport.Y / 2)
+
+    local BestTarget = nil
+
+    local BestFOV = math.huge
+
+    for _, Player in ipairs(Players:GetPlayers()) do
+
+        if Player ~= LocalPlayer then
+
+            if not (Aimbot.TeamCheck and IsSameTeam(Player)) then
+
+                local Character = Player.Character
+
+                if Character and Character:IsDescendantOf(Workspace) and IsAlive(Character) then
+
+                    local TargetPart = GetTargetPart(Character)
+
+                    if TargetPart then
+
+                        local WorldDistance = (TargetPart.Position - CurrentCamera.CFrame.Position).Magnitude
+
+                        if WorldDistance <= Aimbot.Range and IsVisible(TargetPart) then
+
+                            local Screen, OnScreen = CurrentCamera:WorldToViewportPoint(TargetPart.Position)
+
+                            if OnScreen and Screen.Z > 0 then
+
+                                local Point = Vector2.new(Screen.X, Screen.Y)
+
+                                local FOV = (Point - Center).Magnitude
+
+                                if FOV <= Aimbot.FOVRadius and FOV < BestFOV then
+
+                                    BestFOV = FOV
+
+                                    BestTarget = TargetPart
+
+                                end
+
+                            end
+
+                        end
+
+                    end
+
+                end
+
+            end
+
+        end
+
+    end
+
+    return BestTarget
+
+end
+
+local function AimAt(TargetPart, DeltaTime)
+
+    if not TargetPart or not TargetPart.Parent then return end
+
+    local CurrentCamera = GetCamera()
+
+    if not CurrentCamera or not IsAlive(TargetPart.Parent) then return end
+
+    local TargetCFrame = CFrame.lookAt(CurrentCamera.CFrame.Position, TargetPart.Position)
+
+    local Alpha
+
+    if Aimbot.Smoothness <= 0 then
+
+        Alpha = 1
+
+    else
+
+        Alpha = 1 - math.exp(-Aimbot.Smoothness * DeltaTime * 12)
+
+        Alpha = math.clamp(Alpha, 0, 1)
+
+    end
+
+    CurrentCamera.CFrame = CurrentCamera.CFrame:Lerp(TargetCFrame, Alpha)
+
+end
+
+local function UpdateAimbot(DeltaTime)
+
+    if Unloaded or not Aimbot.Enabled or not Aimbot.Keybind or not Aimbot.Keybind.Toggled then
+
+        Aimbot.Target = nil
+
+        return
+
+    end
+
+    Aimbot.Target = GetClosestTarget()
+
+    if Aimbot.Target then
+
+        AimAt(Aimbot.Target, DeltaTime)
+
+    end
+
+end
+
+local function CreateDrawing(Type, Properties)
+
+    local Object = Drawing.new(Type)
+
+    for Property, Value in pairs(Properties) do
+
+        Object[Property] = Value
+
+    end
+
+    return Object
+
+end
+
+local function HideDrawings(Data)
+
+    for _, Object in pairs(Data or {}) do
+
+        Object.Visible = false
+
+    end
+
+end
+
+local function RemoveDrawings(Data)
+
+    for _, Object in pairs(Data or {}) do
+
+        pcall(function()
+
+            Object.Visible = false
+
+            Object:Remove()
+
+        end)
+
+    end
+
+end
+
+local function GetESPData(Player)
+
+    if Drawings[Player] then return Drawings[Player] end
+
+    Drawings[Player] = {
+
+        BoxOutline = CreateDrawing("Square", {Thickness = 3, Color = Color3.fromRGB(0,0,0), Filled = false, Visible = false}),
+
+        Box = CreateDrawing("Square", {Thickness = 1, Color = ESP.BoxColor, Filled = false, Visible = false}),
+
+        Name = CreateDrawing("Text", {Size = ESP.NameSize, Center = true, Outline = true, Color = ESP.NameColor, Visible = false}),
+
+        Distance = CreateDrawing("Text", {Size = ESP.DistanceSize, Center = true, Outline = true, Color = ESP.DistanceColor, Visible = false}),
+
+        HealthBarOutline = CreateDrawing("Line", {Thickness = 3, Color = Color3.fromRGB(0,0,0), Visible = false}),
+
+        HealthBar = CreateDrawing("Line", {Thickness = 1, Visible = false}),
+
+        Tracer = CreateDrawing("Line", {Thickness = ESP.TracerThickness, Color = ESP.TracerColor, Visible = false}),
+
+        HeadDot = CreateDrawing("Circle", {Radius = ESP.HeadDotRadius, Filled = true, Color = ESP.HeadDotColor, Visible = false})
+
+    }
+
+    return Drawings[Player]
+
+end
+
+local function UpdateESPPlayer(Player, Data)
+
+    if Unloaded or not ESP.Enabled or Player == LocalPlayer then
+
+        HideDrawings(Data)
+
+        return
+
+    end
+
+    local Character = Player.Character
+
+    if not Character or not Character:IsDescendantOf(Workspace) or not IsAlive(Character) then
+
+        HideDrawings(Data)
+
+        return
+
+    end
+
+    local Humanoid = GetHumanoid(Character)
+
+    local RootPart = GetRootPart(Character)
+
+    local CurrentCamera = GetCamera()
+
+    if not Humanoid or not RootPart or not CurrentCamera then
+
+        HideDrawings(Data)
+
+        return
+
+    end
+
+    local Distance = (CurrentCamera.CFrame.Position - RootPart.Position).Magnitude
+
+    if Distance > ESP.MaxDistance then
+
+        HideDrawings(Data)
+
+        return
+
+    end
+
+    local R15 = Humanoid.RigType == Enum.HumanoidRigType.R15
+
+    local Top, TopOnScreen = CurrentCamera:WorldToViewportPoint(RootPart.Position + Vector3.new(0, R15 and 3.2 or 2.5, 0))
+
+    local Bottom, BottomOnScreen = CurrentCamera:WorldToViewportPoint(RootPart.Position - Vector3.new(0, R15 and 3.4 or 2.8, 0))
+
+    if not TopOnScreen and not BottomOnScreen or Top.Z <= 0 then
+
+        HideDrawings(Data)
+
+        return
+
+    end
+
+    local Height = math.abs(Top.Y - Bottom.Y)
+
+    if Height <= 1 then
+
+        HideDrawings(Data)
+
+        return
+
+    end
+
+    local Width = Height * 0.6
+
+    local X = Top.X - Width * 0.5
+
+    local Y = Top.Y
+
+    Data.BoxOutline.Thickness = ESP.BoxThickness + 2
+
+    Data.Box.Thickness = ESP.BoxThickness
+
+    Data.Name.Size = ESP.NameSize
+
+    Data.Distance.Size = ESP.DistanceSize
+
+    Data.Tracer.Thickness = ESP.TracerThickness
+
+    Data.HeadDot.Radius = ESP.HeadDotRadius
+
+    local BoxColor = ESP.BoxColor
+
+    if ESP.TeamColor then
+
+        BoxColor = IsSameTeam(Player) and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,255,255)
+
+    end
+
+    if ESP.Boxes then
+
+        Data.BoxOutline.Size = Vector2.new(Width, Height)
+
+        Data.BoxOutline.Position = Vector2.new(X, Y)
+
+        Data.BoxOutline.Visible = true
+
+        Data.Box.Size = Vector2.new(Width, Height)
+
+        Data.Box.Position = Vector2.new(X, Y)
+
+        Data.Box.Color = BoxColor
+
+        Data.Box.Visible = true
+
+    else
+
+        Data.BoxOutline.Visible = false
+
+        Data.Box.Visible = false
+
+    end
+
+    if ESP.Names then
+
+        Data.Name.Position = Vector2.new(Top.X, Y - ESP.NameSize - 2)
+
+        Data.Name.Text = Player.DisplayName
+
+        Data.Name.Color = ESP.NameColor
+
+        Data.Name.Visible = true
+
+    else
+
+        Data.Name.Visible = false
+
+    end
+
+    if ESP.Distance then
+
+        Data.Distance.Position = Vector2.new(Top.X, Bottom.Y + 2)
+
+        Data.Distance.Text = string.format("[%d studs]", math.floor(Distance))
+
+        Data.Distance.Color = ESP.DistanceColor
+
+        Data.Distance.Visible = true
+
+    else
+
+        Data.Distance.Visible = false
+
+    end
+
+    if ESP.HealthBar then
+
+        local Health = Humanoid.MaxHealth > 0 and math.clamp(Humanoid.Health / Humanoid.MaxHealth, 0, 1) or 1
+
+        local BarX = X - 5
+
+        Data.HealthBarOutline.From = Vector2.new(BarX, Y)
+
+        Data.HealthBarOutline.To = Vector2.new(BarX, Y + Height)
+
+        Data.HealthBarOutline.Visible = true
+
+        Data.HealthBar.From = Vector2.new(BarX, Y + Height)
+
+        Data.HealthBar.To = Vector2.new(BarX, Y + Height - Height * Health)
+
+        Data.HealthBar.Color = Color3.fromRGB(255 - math.floor(Health * 255), math.floor(Health * 255), 0)
+
+        Data.HealthBar.Visible = true
+
+    else
+
+        Data.HealthBarOutline.Visible = false
+
+        Data.HealthBar.Visible = false
+
+    end
+
+    if ESP.Tracers then
+
+        local ShowTracer = true
+
+        local TracerColor = ESP.TracerColor
+
+        if ESP.TracerOnlyEnemy then
+
+            if IsSameTeam(Player) then
+
+                ShowTracer = false
+
+            else
+
+                TracerColor = Color3.fromRGB(255,255,255)
+
+            end
+
+        else
+
+            TracerColor = IsSameTeam(Player) and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,255,255)
+
+        end
+
+        if ShowTracer then
+
+            local Viewport = CurrentCamera.ViewportSize
+
+            Data.Tracer.From = Vector2.new(Viewport.X * 0.5, Viewport.Y)
+
+            Data.Tracer.To = Vector2.new(Top.X, Bottom.Y)
+
+            Data.Tracer.Color = TracerColor
+
+            Data.Tracer.Visible = true
+
+        else
+
+            Data.Tracer.Visible = false
+
+        end
+
+    else
+
+        Data.Tracer.Visible = false
+
+    end
+
+    if ESP.HeadDots then
+
+        local Head = Character:FindFirstChild("Head")
+
+        if Head and Head:IsA("BasePart") then
+
+            local HeadPosition, OnScreen = CurrentCamera:WorldToViewportPoint(Head.Position)
+
+            if OnScreen and HeadPosition.Z > 0 then
+
+                Data.HeadDot.Position = Vector2.new(HeadPosition.X, HeadPosition.Y)
+
+                Data.HeadDot.Color = ESP.HeadDotColor
+
+                Data.HeadDot.Visible = true
+
+            else
+
+                Data.HeadDot.Visible = false
+
+            end
+
+        else
+
+            Data.HeadDot.Visible = false
+
+        end
+
+    else
+
+        Data.HeadDot.Visible = false
+
+    end
+
+end
+
+local function StartESP()
+
+    if Connections.ESP then
+
+        pcall(function() Connections.ESP:Disconnect() end)
+
+    end
+
+    Connections.ESP = RunService.RenderStepped:Connect(function()
+
+        if Unloaded then return end
+
+        for _, Player in ipairs(Players:GetPlayers()) do
+
+            if Player ~= LocalPlayer then
+
+                UpdateESPPlayer(Player, GetESPData(Player))
+
+            end
+
+        end
+
+    end)
+
+end
+
+local function StopESP()
+
+    for _, Data in pairs(Drawings) do
+
+        HideDrawings(Data)
+
+    end
+
+end
+
+local function EnableESP()
+
+    ESP.Enabled = true
+
+    for _, Player in ipairs(Players:GetPlayers()) do
+
+        if Player ~= LocalPlayer then
+
+            GetESPData(Player)
+
+        end
+
+    end
+
+    StartESP()
+
+end
+
+local function DisableESP()
+
+    ESP.Enabled = false
+
+    StopESP()
+
+end
+
+
+local PlayerMovement = {
+    FlyEnabled = false, FlySpeed = 50, FlyKeybind = nil, FlyConnection = nil, SavedStates = {},
+    SpeedEnabled = false, SpeedValue = 100, SpeedKeybind = nil, SpeedConnection = nil
+}
+
+local function GetLocalCharacter()
+    local Character = LocalPlayer.Character
+    if not Character or not Character.Parent then return nil, nil, nil end
+    return Character, Character:FindFirstChildOfClass("Humanoid"), Character:FindFirstChild("HumanoidRootPart")
+end
+
+local function StartFly()
+    if PlayerMovement.FlyConnection then return end
+    local Character, Humanoid, RootPart = GetLocalCharacter()
+    if not Character or not Humanoid or not RootPart then return end
+    PlayerMovement.FlyEnabled = true
+    PlayerMovement.SavedStates = {}
+    for _, State in ipairs(Enum.HumanoidStateType:GetEnumItems()) do
+        PlayerMovement.SavedStates[State] = Humanoid:GetStateEnabled(State)
+        Humanoid:SetStateEnabled(State, false)
+    end
+    PlayerMovement.FlyConnection = RunService.Heartbeat:Connect(function(DeltaTime)
+        if Unloaded or not PlayerMovement.FlyEnabled or not PlayerMovement.FlyKeybind or not PlayerMovement.FlyKeybind.Toggled then return end
+        local _, CurrentHumanoid, CurrentRoot = GetLocalCharacter()
+        local CurrentCamera = GetCamera()
+        if not CurrentHumanoid or not CurrentRoot or not CurrentCamera then return end
+        local UserInputService = game:GetService("UserInputService")
+        local MoveVector = Vector3.zero
+        local Forward = CurrentCamera.CFrame.LookVector
+        local Right = CurrentCamera.CFrame.RightVector
+        local Up = CurrentCamera.CFrame.UpVector
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then MoveVector += Forward end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then MoveVector -= Forward end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then MoveVector -= Right end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then MoveVector += Right end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then MoveVector += Up end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then MoveVector -= Up end
+        if MoveVector.Magnitude > 0.001 then
+            CurrentRoot.CFrame = CurrentRoot.CFrame + MoveVector.Unit * PlayerMovement.FlySpeed * DeltaTime
+        end
+        CurrentRoot.AssemblyLinearVelocity = Vector3.zero
+        CurrentRoot.AssemblyAngularVelocity = Vector3.zero
+    end)
+end
+
+local function StopFly()
+    PlayerMovement.FlyEnabled = false
+    if PlayerMovement.FlyConnection then PlayerMovement.FlyConnection:Disconnect(); PlayerMovement.FlyConnection = nil end
+    local _, Humanoid, RootPart = GetLocalCharacter()
+    if Humanoid then
+        for State, Enabled in pairs(PlayerMovement.SavedStates) do pcall(function() Humanoid:SetStateEnabled(State, Enabled) end) end
+    end
+    PlayerMovement.SavedStates = {}
+    if RootPart then RootPart.AssemblyLinearVelocity = Vector3.zero; RootPart.AssemblyAngularVelocity = Vector3.zero end
+end
+
+local function StartSpeed()
+    if PlayerMovement.SpeedConnection then return end
+    PlayerMovement.SpeedEnabled = true
+    PlayerMovement.SpeedConnection = RunService.Heartbeat:Connect(function(DeltaTime)
+        if Unloaded or not PlayerMovement.SpeedEnabled or not PlayerMovement.SpeedKeybind or not PlayerMovement.SpeedKeybind.Toggled then return end
+        local _, Humanoid, RootPart = GetLocalCharacter()
+        if not Humanoid or not RootPart or Humanoid.Health <= 0 then return end
+        local MoveDirection = Humanoid.MoveDirection
+        local HorizontalDirection = Vector3.new(MoveDirection.X, 0, MoveDirection.Z)
+        if HorizontalDirection.Magnitude <= 0.001 then return end
+        RootPart.CFrame = RootPart.CFrame + HorizontalDirection.Unit * PlayerMovement.SpeedValue * DeltaTime
+    end)
+end
+
+local function StopSpeed()
+    PlayerMovement.SpeedEnabled = false
+    if PlayerMovement.SpeedConnection then PlayerMovement.SpeedConnection:Disconnect(); PlayerMovement.SpeedConnection = nil end
+end
+
+local function UnloadScript()
+    if Unloaded then return end
+    Unloaded = true
+    StopFly(); StopSpeed(); StopThirdPerson(); StopWeaponChams(); StopLocalPlayerChams()
+    Aimbot.Enabled = false; Aimbot.IsAiming = false; Aimbot.Target = nil; ESP.Enabled = false
+    for Name, Connection in pairs(Connections) do pcall(function() Connection:Disconnect() end); Connections[Name] = nil end
+    if Aimbot.FOVCircle then pcall(function() Aimbot.FOVCircle.Visible = false; Aimbot.FOVCircle:Remove() end); Aimbot.FOVCircle = nil end
+    for Player, Data in pairs(Drawings) do RemoveDrawings(Data); Drawings[Player] = nil end
+    table.clear(Drawings)
+    pcall(function() Library:Unload() end)
+end
+
+Connections.PlayerAdded = Players.PlayerAdded:Connect(function(Player)
+
+    if Unloaded then return end
+
+    if Player ~= LocalPlayer then
+
+        task.wait(0.1)
+
+        if not Unloaded then
+
+            GetESPData(Player)
+
+        end
+
+    end
+
+end)
+
+Connections.PlayerRemoving = Players.PlayerRemoving:Connect(function(Player)
+
+    if Drawings[Player] then
+
+        RemoveDrawings(Drawings[Player])
+
+    end
+
+    Drawings[Player] = nil
+
+end)
+
+Connections.Aimbot = RunService.RenderStepped:Connect(UpdateAimbot)
+
+Connections.FOV = RunService.RenderStepped:Connect(UpdateFOVCircle)
+
+Connections.CharacterAdded = LocalPlayer.CharacterAdded:Connect(function()
+
+    task.wait(0.1)
+
+    Camera = Workspace.CurrentCamera
+
+end)
+
+local Window = Library:CreateWindow({
+
+    Name = "JulyScripts",
+    SubName = "Knife Duels",
+    Logo = "rbxassetid://116255434488074",
+
+    SettingsTabEnabled = true
+
+})
+
+local function HideUserInfo()
+    pcall(function()
+        local Sidebar = Window.Items and Window.Items.Sidebar and Window.Items.Sidebar.Instance
+        if not Sidebar then return end
+        for _, Child in ipairs(Sidebar:GetChildren()) do
+            if Child:IsA("Frame")
+                and Child.AnchorPoint == Vector2.new(0, 1)
+                and Child.Position == UDim2.new(0, 0, 1, 20)
+                and Child.Size == UDim2.new(1, 0, 0, 105) then
+                Child.Visible = false
+            elseif Child:IsA("Frame")
+                and Child.AnchorPoint == Vector2.new(0, 1)
+                and Child.Position == UDim2.new(0, 0, 1, -85)
+                and Child.Size == UDim2.new(1, 0, 0, 1) then
+                Child.Visible = false
+            end
+        end
+    end)
+end
+
+HideUserInfo()
+
+local Main = Window:AddTab({
+
+    Name = "Main",
+
+    Icon = "crosshair"
+
+})
+
+local Visuals = Window:AddTab({
+
+    Name = "Visuals",
+
+    Icon = "eye"
+
+})
+
+local PlayerTab = Window:AddTab({
+    Name = "Player",
+    Icon = "user"
+})
+
+local MainSection = Main:AddSection({
+
+    Name = "Aimbot",
+
+    Icon = "crosshair"
+
+})
+
+MainSection:AddToggle({
+
+    Name = "Enable Aimbot",
+
+    Flag = "AimbotEnabled",
+
+    Default = false,
+
+    Callback = function(Value)
+
+        Aimbot.Enabled = Value
+
+        Aimbot.Target = nil
+
+        UpdateFOVCircle()
+
+    end
+
+})
+
+local AimKeyLabel = MainSection:AddLabel("Aimbot Key")
+
+Aimbot.Keybind = AimKeyLabel:Keybind({
+
+    Flag = "AimbotKey",
+
+    Default = Enum.UserInputType.MouseButton2,
+
+    Mode = "Hold",
+
+    Callback = function() end
+
+})
+
+MainSection:AddSlider({
+
+    Name = "Range",
+
+    Flag = "AimbotRange",
+
+    Default = 3000,
+
+    Min = 50,
+
+    Max = 3000,
+
+    Decimals = 1,
+
+    Callback = function(Value)
+
+        Aimbot.Range = Value
+
+    end
+
+})
+
+MainSection:AddSlider({
+
+    Name = "FOV Radius",
+
+    Flag = "AimbotFOV",
+
+    Default = 150,
+
+    Min = 10,
+
+    Max = 500,
+
+    Decimals = 1,
+
+    Callback = function(Value)
+
+        Aimbot.FOVRadius = Value
+
+        UpdateFOVCircle()
+
+    end
+
+})
+
+MainSection:AddToggle({
+
+    Name = "Aim at Head",
+
+    Flag = "AimbotHead",
+
+    Default = true,
+
+    Callback = function(Value)
+
+        Aimbot.AimAtHead = Value
+
+    end
+
+})
+
+MainSection:AddToggle({
+
+    Name = "Team Check",
+
+    Flag = "AimbotTeamCheck",
+
+    Default = true,
+
+    Callback = function(Value)
+
+        Aimbot.TeamCheck = Value
+
+    end
+
+})
+
+MainSection:AddToggle({
+
+    Name = "Wall Check",
+
+    Flag = "AimbotWallCheck",
+
+    Default = true,
+
+    Callback = function(Value)
+
+        Aimbot.WallCheck = Value
+
+    end
+
+})
+
+MainSection:AddToggle({
+
+    Name = "Show FOV Circle",
+
+    Flag = "AimbotShowFOV",
+
+    Default = false,
+
+    Callback = function(Value)
+
+        Aimbot.ShowFOVCircle = Value
+
+        UpdateFOVCircle()
+
+    end
+
+})
+
+MainSection:AddDropdown({
+
+    Name = "Circle Color",
+
+    Flag = "AimbotFOVColor",
+
+    Items = {"White","Red","Green","Blue","Yellow","Cyan","Magenta"},
+
+    Default = "White",
+
+    Callback = function(Value)
+
+        local Colors = {
+
+            White = Color3.fromRGB(255,255,255),
+
+            Red = Color3.fromRGB(255,0,0),
+
+            Green = Color3.fromRGB(0,255,0),
+
+            Blue = Color3.fromRGB(0,0,255),
+
+            Yellow = Color3.fromRGB(255,255,0),
+
+            Cyan = Color3.fromRGB(0,255,255),
+
+            Magenta = Color3.fromRGB(255,0,255)
+
+        }
+
+        Aimbot.FOVCircleColor = Colors[Value] or Color3.fromRGB(255,255,255)
+
+        UpdateFOVCircle()
+
+    end
+
+})
+
+MainSection:AddSlider({
+
+    Name = "FOV Circle Thickness",
+
+    Flag = "AimbotFOVThickness",
+
+    Default = 1,
+
+    Min = 1,
+
+    Max = 3,
+
+    Decimals = 1,
+
+    Callback = function(Value)
+
+        Aimbot.FOVCircleThickness = Value
+
+        UpdateFOVCircle()
+
+    end
+
+})
+
+local FlySection = PlayerTab:AddSection({
+    Name = "Fly",
+    Icon = "plane"
+})
+
+FlySection:AddToggle({
+    Name = "Enable Fly",
+    Flag = "FlyEnabled",
+    Default = false,
+    Callback = function(Value)
+        if Unloaded then return end
+        if Value then StartFly() else StopFly() end
+    end
+})
+
+local FlyKeyLabel = FlySection:AddLabel("Fly Key")
+PlayerMovement.FlyKeybind = FlyKeyLabel:Keybind({
+    Flag = "FlyKey",
+    Default = Enum.KeyCode.V,
+    Mode = "Hold",
+    Callback = function() end
+})
+
+FlySection:AddSlider({
+    Name = "Fly Speed",
+    Flag = "FlySpeed",
+    Default = 50,
+    Min = 10,
+    Max = 200,
+    Decimals = 1,
+    Callback = function(Value) PlayerMovement.FlySpeed = Value end
+})
+
+local SpeedSection = PlayerTab:AddSection({
+    Name = "Speed Hack",
+    Icon = "zap"
+})
+
+SpeedSection:AddToggle({
+    Name = "Enable Speed Hack",
+    Flag = "SpeedEnabled",
+    Default = false,
+    Callback = function(Value)
+        if Unloaded then return end
+        if Value then StartSpeed() else StopSpeed() end
+    end
+})
+
+local SpeedKeyLabel = SpeedSection:AddLabel("Speed Key")
+PlayerMovement.SpeedKeybind = SpeedKeyLabel:Keybind({
+    Flag = "SpeedKey",
+    Default = Enum.KeyCode.LeftAlt,
+    Mode = "Hold",
+    Callback = function() end
+})
+
+SpeedSection:AddSlider({
+    Name = "Speed",
+    Flag = "SpeedValue",
+    Default = 100,
+    Min = 20,
+    Max = 500,
+    Decimals = 1,
+    Callback = function(Value) PlayerMovement.SpeedValue = Value end
+})
+
+local CameraSection = Visuals:AddSection({
+    Name = "Camera",
+    Icon = "camera"
+})
+
+CameraSection:AddToggle({
+    Name = "Third Person",
+    Flag = "ThirdPerson",
+    Default = false,
+    Callback = function(Value)
+        if Unloaded then return end
+        if Value then
+            StartThirdPerson()
+        else
+            StopThirdPerson()
+        end
+    end
+})
+
+local WeaponChamsSection = Visuals:AddSection({
+    Name = "Weapon Chams",
+    Icon = "crosshair"
+})
+
+local WeaponChamsToggle = WeaponChamsSection:AddToggle({
+    Name = "Enable Weapon Chams",
+    Flag = "WeaponChams",
+    Default = false,
+    Callback = function(Value)
+        if Unloaded then return end
+        if Value then
+            StartWeaponChams()
+        else
+            StopWeaponChams()
+        end
+    end
+})
+
+local WeaponColorLabel = WeaponChamsSection:AddLabel("Color")
+WeaponColorLabel:Colorpicker({
+    Flag = "WeaponChamsColor",
+    Default = WeaponChams.Color,
+    Callback = function(Value)
+        WeaponChams.Color = Value
+        if WeaponChams.Enabled then
+            ApplyWeaponChams()
+        end
+    end
+})
+
+WeaponChamsSection:AddDropdown({
+    Name = "Material",
+    Flag = "WeaponChamsMaterial",
+    Items = {
+        "Plastic",
+        "SmoothPlastic",
+        "Neon",
+        "ForceField",
+        "Glass",
+        "Metal",
+        "DiamondPlate",
+        "Foil",
+        "Ice"
+    },
+    Default = "Neon",
+    Callback = function(Value)
+        WeaponChams.Material = WeaponMaterialMap[Value] or Enum.Material.Neon
+        if WeaponChams.Enabled then
+            ApplyWeaponChams()
+        end
+    end
+})
+
+WeaponChamsSection:AddSlider({
+    Name = "Transparency",
+    Flag = "WeaponChamsTransparency",
+    Default = 0,
+    Min = 0,
+    Max = 100,
+    Decimals = 1,
+    Callback = function(Value)
+        WeaponChams.Transparency = math.clamp(Value / 100, 0, 1)
+        if WeaponChams.Enabled then
+            ApplyWeaponChams()
+        end
+    end
+})
+
+local LocalPlayerChamsSection = Visuals:AddSection({
+    Name = "Local Player Chams",
+    Icon = "user"
+})
+
+LocalPlayerChamsSection:AddToggle({
+    Name = "Enable Local Player Chams",
+    Flag = "LocalPlayerChams",
+    Default = false,
+    Callback = function(Value)
+        if Unloaded then return end
+        if Value then
+            StartLocalPlayerChams()
+        else
+            StopLocalPlayerChams()
+        end
+    end
+})
+
+local LocalPlayerColorLabel = LocalPlayerChamsSection:AddLabel("Color")
+LocalPlayerColorLabel:Colorpicker({
+    Flag = "LocalPlayerChamsColor",
+    Default = LocalPlayerChams.Color,
+    Callback = function(Value)
+        LocalPlayerChams.Color = Value
+        if LocalPlayerChams.Enabled then
+            ApplyLocalPlayerChams()
+        end
+    end
+})
+
+LocalPlayerChamsSection:AddDropdown({
+    Name = "Material",
+    Flag = "LocalPlayerChamsMaterial",
+    Items = {
+        "Plastic",
+        "SmoothPlastic",
+        "Neon",
+        "ForceField",
+        "Glass",
+        "Metal",
+        "DiamondPlate",
+        "Foil",
+        "Ice"
+    },
+    Default = "Neon",
+    Callback = function(Value)
+        LocalPlayerChams.Material = WeaponMaterialMap[Value] or Enum.Material.Neon
+        if LocalPlayerChams.Enabled then
+            ApplyLocalPlayerChams()
+        end
+    end
+})
+
+LocalPlayerChamsSection:AddSlider({
+    Name = "Transparency",
+    Flag = "LocalPlayerChamsTransparency",
+    Default = 0,
+    Min = 0,
+    Max = 100,
+    Decimals = 1,
+    Callback = function(Value)
+        LocalPlayerChams.Transparency = math.clamp(Value / 100, 0, 1)
+        if LocalPlayerChams.Enabled then
+            ApplyLocalPlayerChams()
+        end
+    end
+})
+
+local ESPSection = Visuals:AddSection({
+
+    Name = "ESP",
+
+    Icon = "scan"
+
+})
+
+ESPSection:AddToggle({
+
+    Name = "Enable ESP",
+
+    Flag = "ESP",
+
+    Default = false,
+
+    Callback = function(Value)
+
+        if Unloaded then return end
+
+        if Value then EnableESP() else DisableESP() end
+
+    end
+
+})
+
+ESPSection:AddToggle({
+
+    Name = "Boxes",
+
+    Flag = "ESPBoxes",
+
+    Default = true,
+
+    Callback = function(Value) ESP.Boxes = Value end
+
+})
+
+ESPSection:AddToggle({
+
+    Name = "Names",
+
+    Flag = "ESPNames",
+
+    Default = true,
+
+    Callback = function(Value) ESP.Names = Value end
+
+})
+
+ESPSection:AddToggle({
+
+    Name = "Distance",
+
+    Flag = "ESPDistance",
+
+    Default = true,
+
+    Callback = function(Value) ESP.Distance = Value end
+
+})
+
+ESPSection:AddToggle({
+
+    Name = "Health Bar",
+
+    Flag = "ESPHealthBar",
+
+    Default = true,
+
+    Callback = function(Value) ESP.HealthBar = Value end
+
+})
+
+ESPSection:AddToggle({
+
+    Name = "Tracers",
+
+    Flag = "ESPTracers",
+
+    Default = false,
+
+    Callback = function(Value) ESP.Tracers = Value end
+
+})
+
+ESPSection:AddToggle({
+
+    Name = "Only Enemy Tracers",
+
+    Flag = "ESPTracerOnlyEnemy",
+
+    Default = false,
+
+    Callback = function(Value) ESP.TracerOnlyEnemy = Value end
+
+})
+
+ESPSection:AddToggle({
+
+    Name = "Head Dots",
+
+    Flag = "ESPHeadDots",
+
+    Default = false,
+
+    Callback = function(Value) ESP.HeadDots = Value end
+
+})
+
+ESPSection:AddToggle({
+
+    Name = "Team Color",
+
+    Flag = "ESPTeamColor",
+
+    Default = false,
+
+    Callback = function(Value) ESP.TeamColor = Value end
+
+})
+
+ESPSection:AddSlider({
+
+    Name = "Max Distance",
+
+    Flag = "ESPMaxDistance",
+
+    Default = 2500,
+
+    Min = 100,
+
+    Max = 5000,
+
+    Decimals = 1,
+
+    Callback = function(Value) ESP.MaxDistance = Value end
+
+})
+
+ESPSection:AddSlider({
+
+    Name = "Box Thickness",
+
+    Flag = "ESPBoxThickness",
+
+    Default = 1,
+
+    Min = 1,
+
+    Max = 3,
+
+    Decimals = 1,
+
+    Callback = function(Value) ESP.BoxThickness = Value end
+
+})
+
+ESPSection:AddSlider({
+
+    Name = "Name Size",
+
+    Flag = "ESPNameSize",
+
+    Default = 13,
+
+    Min = 10,
+
+    Max = 20,
+
+    Decimals = 1,
+
+    Callback = function(Value) ESP.NameSize = Value end
+
+})
+
+ESPSection:AddSlider({
+
+    Name = "Distance Size",
+
+    Flag = "ESPDistanceSize",
+
+    Default = 11,
+
+    Min = 10,
+
+    Max = 18,
+
+    Decimals = 1,
+
+    Callback = function(Value) ESP.DistanceSize = Value end
+
+})
+
+ESPSection:AddSlider({
+
+    Name = "Tracer Thickness",
+
+    Flag = "ESPTracerThickness",
+
+    Default = 1,
+
+    Min = 1,
+
+    Max = 3,
+
+    Decimals = 1,
+
+    Callback = function(Value) ESP.TracerThickness = Value end
+
+})
+
+ESPSection:AddSlider({
+
+    Name = "Head Dot Radius",
+
+    Flag = "ESPHeadDotRadius",
+
+    Default = 3,
+
+    Min = 1,
+
+    Max = 8,
+
+    Decimals = 1,
+
+    Callback = function(Value) ESP.HeadDotRadius = Value end
+
+})
+
+if Window.SettingsPage then
+
+    local UnloadSection = Window.SettingsPage:AddSection({
+
+        Name = "Unload",
+
+        Icon = "power"
+
+    })
+
+    UnloadSection:AddButton({
+
+        Name = "Unload Script",
+
+        Callback = function()
+
+            if not Unloaded then
+
+                Library:Unload()
+
+            end
+
+        end
+
+    })
+
+end
+
+Library:OnUnload(function()
+
+    if Unloaded then return end
+
+    Unloaded = true
+
+    StopThirdPerson()
+    StopWeaponChams()
+    StopLocalPlayerChams()
+    Aimbot.Enabled = false
+
+    Aimbot.Target = nil
+
+    ESP.Enabled = false
+
+    for Name, Connection in pairs(Connections) do
+
+        pcall(function()
+
+            Connection:Disconnect()
+
+        end)
+
+        Connections[Name] = nil
+
+    end
+
+    if Aimbot.FOVCircle then
+
+        pcall(function()
+
+            Aimbot.FOVCircle.Visible = false
+
+            Aimbot.FOVCircle:Remove()
+
+        end)
+
+        Aimbot.FOVCircle = nil
+
+    end
+
+    for Player, Data in pairs(Drawings) do
+
+        RemoveDrawings(Data)
+
+        Drawings[Player] = nil
+
+    end
+
+    table.clear(Drawings)
+
+end)
+
+getgenv().JulyESP = {
+
+    Library = Library,
+
+    Window = Window,
+
+    Aimbot = Aimbot,
+
+    ESP = ESP,
+
+    Unload = function()
+
+        if not Unloaded then
+
+            Library:Unload()
+
+        end
+
+    end
+
+}
