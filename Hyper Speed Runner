@@ -1,0 +1,456 @@
+local Library = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/vortex777-ai/ui-worldofS-st/refs/heads/main/Stellar.lua"
+))()
+
+if not Library then
+    return
+end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+
+local IsUnloaded = false
+
+local PlayerSettings = {
+    SpeedHack = false,
+    Speed = 30,
+
+    Fly = false,
+    FlySpeed = 50,
+
+    Noclip = false
+}
+
+local Connections = {}
+
+local function AddConnection(Connection)
+    if Connection then
+        table.insert(Connections, Connection)
+    end
+
+    return Connection
+end
+
+local function DisconnectConnections()
+    for _, Connection in ipairs(Connections) do
+        pcall(function()
+            Connection:Disconnect()
+        end)
+    end
+
+    table.clear(Connections)
+end
+
+local function GetCharacter()
+    return LocalPlayer.Character
+end
+
+local function GetHumanoid()
+    local Character = GetCharacter()
+
+    if not Character then
+        return nil
+    end
+
+    return Character:FindFirstChildOfClass("Humanoid")
+end
+
+local function GetRootPart()
+    local Character = GetCharacter()
+
+    if not Character then
+        return nil
+    end
+
+    return Character:FindFirstChild("HumanoidRootPart")
+        or Character.PrimaryPart
+end
+
+local function UpdateNoclip()
+    if IsUnloaded then
+        return
+    end
+
+    local Character = GetCharacter()
+
+    if not Character then
+        return
+    end
+
+    for _, Object in ipairs(Character:GetDescendants()) do
+        if Object:IsA("BasePart") then
+            Object.CanCollide = not PlayerSettings.Noclip
+        end
+    end
+end
+
+local function UpdateSpeedHack()
+    if IsUnloaded or not PlayerSettings.SpeedHack then
+        return
+    end
+
+    local Humanoid = GetHumanoid()
+    local RootPart = GetRootPart()
+
+    if not Humanoid
+        or not RootPart
+        or Humanoid.Health <= 0 then
+        return
+    end
+
+    local MoveDirection = Humanoid.MoveDirection
+
+    if MoveDirection.Magnitude <= 0 then
+        return
+    end
+
+    RootPart.CFrame =
+        RootPart.CFrame
+        + (MoveDirection * PlayerSettings.Speed * (1 / 60))
+end
+
+local function UpdateFly()
+    if IsUnloaded or not PlayerSettings.Fly then
+        return
+    end
+
+    local Humanoid = GetHumanoid()
+    local RootPart = GetRootPart()
+
+    if not Humanoid
+        or not RootPart
+        or Humanoid.Health <= 0 then
+        return
+    end
+
+    Humanoid.PlatformStand = true
+
+    local Camera = workspace.CurrentCamera
+
+    if not Camera then
+        return
+    end
+
+    local MoveDirection = Humanoid.MoveDirection
+    local Vertical = 0
+
+    if game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.Space) then
+        Vertical = 1
+    elseif game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.LeftControl) then
+        Vertical = -1
+    end
+
+    local Direction = Vector3.zero
+
+    if MoveDirection.Magnitude > 0 then
+        Direction =
+            Direction
+            + (Camera.CFrame.LookVector * MoveDirection.Z)
+            + (Camera.CFrame.RightVector * MoveDirection.X)
+    end
+
+    if Vertical ~= 0 then
+        Direction =
+            Direction
+            + Vector3.new(
+                0,
+                Vertical,
+                0
+            )
+    end
+
+    if Direction.Magnitude > 0 then
+        Direction = Direction.Unit
+
+        RootPart.CFrame =
+            RootPart.CFrame
+            + (
+                Direction
+                * PlayerSettings.FlySpeed
+                * (1 / 60)
+            )
+    end
+
+    RootPart.AssemblyLinearVelocity =
+        Vector3.zero
+
+    RootPart.AssemblyAngularVelocity =
+        Vector3.zero
+end
+
+local function StopFly()
+    local Humanoid = GetHumanoid()
+
+    if Humanoid then
+        Humanoid.PlatformStand = false
+    end
+end
+
+local Window =
+    Library:CreateWindow({
+        Name = "JulyScripts",
+        SubName = "Hyper Speed Runner",
+        Logo = "rbxassetid://116255434488074",
+
+        WatermarkEnabled = false,
+        WatermarkText = "JulyScripts",
+
+        SettingsTabEnabled = false
+    })
+
+local MainTab =
+    Window:AddTab({
+        Name = "Main",
+        Icon = "house"
+    })
+
+local PlayerTab =
+    Window:AddTab({
+        Name = "Player",
+        Icon = "user"
+    })
+
+local SettingTab =
+    Window:AddTab({
+        Name = "Setting",
+        Icon = "settings"
+    })
+
+local MainSection =
+    MainTab:AddSection({
+        Name = "Main",
+        Icon = "home"
+    })
+
+local AutoCashFarm = false
+local AutoCashConnection = nil
+
+local function StopAutoCashFarm()
+    if AutoCashConnection then
+        pcall(function()
+            AutoCashConnection:Disconnect()
+        end)
+
+        AutoCashConnection = nil
+    end
+end
+
+local function StartAutoCashFarm()
+    StopAutoCashFarm()
+
+    if not AutoCashFarm or IsUnloaded then
+        return
+    end
+
+    local Accumulator = 2
+
+    AutoCashConnection =
+        RunService.Heartbeat:Connect(function(DeltaTime)
+            if IsUnloaded or not AutoCashFarm then
+                return
+            end
+
+            Accumulator += DeltaTime
+
+            if Accumulator < 2 then
+                return
+            end
+
+            Accumulator = 0
+
+            local RootPart = GetRootPart()
+
+            if not RootPart then
+                return
+            end
+
+            RootPart.CFrame = CFrame.new(
+                -5.63876893e-06,
+                2,
+                -9076,
+                0,
+                0,
+                1,
+                0,
+                1,
+                0,
+                -1,
+                0,
+                0
+            )
+        end)
+end
+
+MainSection:AddToggle({
+    Name = "Auto Cash Farm",
+    Flag = "AutoCashFarm",
+    Default = false,
+
+    Callback = function(Value)
+        AutoCashFarm = Value
+
+        if Value then
+            StartAutoCashFarm()
+        else
+            StopAutoCashFarm()
+        end
+    end
+})
+
+local SpeedSection =
+    PlayerTab:AddSection({
+        Name = "Speed",
+        Icon = "zap"
+    })
+
+SpeedSection:AddToggle({
+    Name = "SpeedHack",
+    Flag = "SpeedHack",
+    Default = false,
+
+    Callback = function(Value)
+        PlayerSettings.SpeedHack = Value
+    end
+})
+
+SpeedSection:AddSlider({
+    Name = "Speed",
+    Flag = "SpeedHackValue",
+
+    Min = 1,
+    Max = 200,
+    Default = 30,
+
+    Suffix = " studs/s",
+    Decimals = 1,
+
+    Callback = function(Value)
+        PlayerSettings.Speed = Value
+    end
+})
+
+local FlySection =
+    PlayerTab:AddSection({
+        Name = "Fly",
+        Icon = "plane"
+    })
+
+FlySection:AddToggle({
+    Name = "Fly",
+    Flag = "Fly",
+    Default = false,
+
+    Callback = function(Value)
+        PlayerSettings.Fly = Value
+
+        if not Value then
+            StopFly()
+        end
+    end
+})
+
+FlySection:AddSlider({
+    Name = "Fly Speed",
+    Flag = "FlySpeed",
+
+    Min = 1,
+    Max = 200,
+    Default = 50,
+
+    Suffix = " studs/s",
+    Decimals = 1,
+
+    Callback = function(Value)
+        PlayerSettings.FlySpeed = Value
+    end
+})
+local NoclipSection =
+    PlayerTab:AddSection({
+        Name = "Noclip",
+        Icon = "ghost"
+    })
+
+NoclipSection:AddToggle({
+    Name = "Noclip",
+    Flag = "Noclip",
+    Default = false,
+
+    Callback = function(Value)
+        PlayerSettings.Noclip = Value
+        UpdateNoclip()
+    end
+})
+
+local SettingSection =
+    SettingTab:AddSection({
+        Name = "General",
+        Icon = "settings"
+    })
+
+SettingSection:AddLabel(
+    "JulyScripts"
+)
+
+SettingSection:AddButton({
+    Name = "Unload",
+
+    Callback = function()
+        if IsUnloaded then
+            return
+        end
+
+        IsUnloaded = true
+
+        PlayerSettings.SpeedHack = false
+        PlayerSettings.Fly = false
+        PlayerSettings.Noclip = false
+
+        StopFly()
+        StopAutoCashFarm()
+        DisconnectConnections()
+
+        local Character = GetCharacter()
+
+        if Character then
+            for _, Object in ipairs(Character:GetDescendants()) do
+                if Object:IsA("BasePart") then
+                    Object.CanCollide = true
+                end
+            end
+        end
+
+        pcall(function()
+            Library:Unload()
+        end)
+    end
+})
+
+AddConnection(
+    RunService.Heartbeat:Connect(function()
+        if IsUnloaded then
+            return
+        end
+
+        UpdateSpeedHack()
+        UpdateFly()
+        UpdateNoclip()
+    end)
+)
+
+AddConnection(
+    LocalPlayer.CharacterAdded:Connect(function()
+        task.wait(0.25)
+
+        if PlayerSettings.Fly then
+            local Humanoid = GetHumanoid()
+
+            if Humanoid then
+                Humanoid.PlatformStand = true
+            end
+        end
+
+        UpdateNoclip()
+    end)
+)
